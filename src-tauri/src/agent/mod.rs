@@ -369,9 +369,9 @@ impl AgentSession<'_> {
             Self::Daemon => crate::daemon::request("get_config", json!({}))
                 .ok()
                 .and_then(|value| serde_json::from_value::<KensakuConfig>(value).ok())
-                .map(|config| config.agent_scoped_roots)
+                .map(|config| effective_agent_roots(&config))
                 .unwrap_or_default(),
-            Self::Local(index) => index.config.agent_scoped_roots.clone(),
+            Self::Local(index) => effective_agent_roots(&index.config),
             Self::None => Vec::new(),
         }
     }
@@ -621,11 +621,47 @@ fn scope_contains(root: &str, path: &str) -> bool {
     path == root || path.starts_with(&root)
 }
 
-/// True when `path` is within the configured agent-scope roots (or no roots
-/// are configured). Used to gate `read_snippet`-style single-path reads.
+/// Roots an agent may read from: the explicit `agent_scoped_roots`, or, when
+/// none are set, the indexed (watched) folders.
+///
+/// index_osr: upstream treated an empty list as "the whole disk". Here the
+/// agent never sees more than what the user chose to index.
+pub fn effective_agent_roots(config: &KensakuConfig) -> Vec<String> {
+    if !config.agent_scoped_roots.is_empty() {
+        return config.agent_scoped_roots.clone();
+    }
+    config
+        .watched_dirs
+        .iter()
+        .map(|dir| dir.to_string_lossy().into_owned())
+        .collect()
+}
+
+/// File types an agent may never read, even inside an allowed root: keys,
+/// password stores, databases and executables.
+const DENIED_AGENT_EXTENSIONS: &[&str] = &[
+    "pem", "key", "pfx", "p12", "ppk", "kdbx", "kdb", "keychain", "env", "db", "sqlite",
+    "sqlite3", "db-wal", "db-shm", "exe", "dll", "token",
+];
+
+fn denied_by_extension(path: &str) -> bool {
+    Path::new(path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| {
+            let ext = ext.to_ascii_lowercase();
+            DENIED_AGENT_EXTENSIONS.contains(&ext.as_str())
+        })
+        .unwrap_or(false)
+}
+
+/// True when `path` is within the agent roots and is not a denied file type.
+/// Used to gate `read_snippet`-style single-path reads.
+///
+/// index_osr: an empty root list denies everything (upstream allowed any path).
 pub fn agent_path_allowed(roots: &[String], path: &str) -> bool {
-    if roots.is_empty() {
-        return true;
+    if roots.is_empty() || denied_by_extension(path) {
+        return false;
     }
     roots.iter().any(|root| scope_contains(root, path))
 }
@@ -714,17 +750,14 @@ pub fn truncate_chars(text: &str, max_chars: usize) -> String {
     text.chars().take(max_chars).collect()
 }
 
-/// Random-enough token for a loopback-only local socket or HTTP endpoint.
+/// Secret for the loopback HTTP endpoint and the daemon socket.
 ///
-/// Not cryptographic: the threat model is other local processes, and the
-/// token file is 0600. Same scheme the daemon uses for its socket token.
+/// index_osr: 32 bytes from the OS CSPRNG, hex-encoded. The previous
+/// pid+time scheme was guessable by any local process.
 pub fn new_connection_token() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    format!("{:x}-{:x}", std::process::id(), nanos)
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes).expect("OS random number generator unavailable");
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// Unix timestamp (seconds) used for `as_of` / freshness fields.
@@ -855,8 +888,9 @@ mod scope_tests {
     }
 
     #[test]
-    fn empty_roots_allow_anything() {
-        assert!(agent_path_allowed(&[], "/etc/passwd"));
+    fn empty_roots_deny_direct_reads() {
+        // index_osr: no roots means nothing to read, never the whole disk.
+        assert!(!agent_path_allowed(&[], "/etc/passwd"));
         // The normalization preserves POSIX roots, so with no configured
         // roots the request passes through lexically unchanged. Windows
         // renders the POSIX root with the native separator.
@@ -865,6 +899,34 @@ mod scope_tests {
             agent_scope_paths(&[], Some("/tmp/demo")).unwrap(),
             vec![expected.to_string()]
         );
+    }
+
+    #[test]
+    fn denies_secret_file_types_inside_roots() {
+        let root = temp_root("secrets");
+        let roots = vec![root.to_string_lossy().into_owned()];
+        for name in ["id.pem", "vault.KDBX", "app.db", "tool.exe", "http.token"] {
+            assert!(!agent_path_allowed(&roots, &root.join(name).to_string_lossy()), "{name}");
+        }
+        assert!(agent_path_allowed(&roots, &root.join("иск.docx").to_string_lossy()));
+    }
+
+    #[test]
+    fn effective_roots_fall_back_to_watched_dirs() {
+        let mut config = KensakuConfig::default();
+        config.watched_dirs = vec![PathBuf::from("/cases")];
+        config.agent_scoped_roots.clear();
+        assert_eq!(effective_agent_roots(&config), vec!["/cases".to_string()]);
+        config.agent_scoped_roots = vec!["/cases/active".to_string()];
+        assert_eq!(effective_agent_roots(&config), vec!["/cases/active".to_string()]);
+    }
+
+    #[test]
+    fn connection_tokens_are_long_and_unique() {
+        let a = new_connection_token();
+        let b = new_connection_token();
+        assert_eq!(a.len(), 64);
+        assert_ne!(a, b);
     }
 
     #[test]

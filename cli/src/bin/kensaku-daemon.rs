@@ -41,13 +41,8 @@ fn ensure_token(config_dir: &Path) -> std::io::Result<String> {
             return Ok(t);
         }
     }
-    // Generate a simple token from random-ish bytes using process id + time.
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let token = format!("{:x}-{:x}", std::process::id(), nanos);
+    // index_osr: CSPRNG token (was pid + time, guessable by local processes).
+    let token = kensaku_lib::agent::new_connection_token();
     fs::write(&path, &token)?;
     #[cfg(unix)]
     let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
@@ -394,8 +389,13 @@ fn handle_client(stream: LocalSocketStream, token: &str, manager: &Arc<IndexerMa
             }
             "read_snippet" => {
                 let path = params.get("path").and_then(|v| v.as_str()).unwrap_or("");
+                let roots = kensaku_lib::agent::effective_agent_roots(&manager.config.read());
                 if path.is_empty() {
                     Err("read_snippet requires a path".to_string())
+                } else if !kensaku_lib::agent::agent_path_allowed(&roots, path) {
+                    // index_osr: the daemon enforces the scope itself, so a
+                    // client that skips the MCP layer cannot read arbitrary files.
+                    Err("path is outside the indexed folders".to_string())
                 } else {
                     let query = params.get("query").and_then(|v| v.as_str());
                     let max_tokens = params

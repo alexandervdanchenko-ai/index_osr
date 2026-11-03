@@ -35,8 +35,6 @@ import { normalizeTheme } from "./hooks/useTheme";
 import { PreviewDialog } from "./components/PreviewDialog";
 import { classify } from "./lib/categories";
 import { inFilter } from "./lib/query";
-import { isNewerVersion } from "./lib/version";
-import { getVersion } from "@tauri-apps/api/app";
 import {
   Settings as SettingsIcon,
   RefreshCw,
@@ -102,7 +100,7 @@ function App() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [indexingStatus, setIndexingStatus] = useState<IndexingStatus | null>(null);
   const [doctorReport, setDoctorReport] = useState<DoctorReport | null>(null);
-  const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
+  const updateAvailable: string | null = null;
   const [showSettings, setShowSettings] = useState(false);
   const [settingsSection, setSettingsSection] = useState<string | undefined>(undefined);
   const [showDuplicates, setShowDuplicates] = useState(false);
@@ -139,20 +137,8 @@ function App() {
       .catch(() => {});
   }, [isSetupComplete]);
 
-  useEffect(() => {
-    /* Compare against the running app's real version, and only flag a
-       strictly newer release: "not equal" offered a downgrade whenever the
-       latest published release was older than this build. */
-    Promise.all([
-      getVersion(),
-      fetch("https://api.github.com/repos/yjid/kensaku/releases/latest").then((r) => r.json()),
-    ])
-      .then(([current, latest]: [string, { tag_name?: string }]) => {
-        const tag = String(latest?.tag_name || "").replace(/^v/, "");
-        if (tag && isNewerVersion(tag, current)) setUpdateAvailable(tag);
-      })
-      .catch(() => {});
-  }, []);
+  /* index_osr: no automatic update check. The app makes no network request on
+     its own; new versions come with the CourtMonitor installer. */
 
   const showThumbs = config?.show_thumbnails !== false;
   const view: ResultView = config?.results_view === "list" ? "list" : "grid";
@@ -1288,7 +1274,7 @@ function App() {
                 </div>
               )}
 
-              <KeyHintStrip status={indexingStatus} doctor={doctorReport} updateAvailable={updateAvailable} onDoctor={() => { setShowSettings(true); setSettingsSection("doctor"); }} onUpdate={() => window.open("https://github.com/yjid/kensaku/releases/latest", "_blank")} />
+              <KeyHintStrip status={indexingStatus} doctor={doctorReport} updateAvailable={updateAvailable} onDoctor={() => { setShowSettings(true); setSettingsSection("doctor"); }} onUpdate={() => {}} />
             </>
           )}
         </>

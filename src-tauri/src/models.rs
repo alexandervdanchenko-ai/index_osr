@@ -29,7 +29,6 @@ const ARTIFACTS: [Artifact; 3] = [
         name: "model.safetensors",
         urls: &[
             "https://huggingface.co/minishlab/potion-base-8M/resolve/main/model.safetensors",
-            "https://hf-mirror.com/minishlab/potion-base-8M/resolve/main/model.safetensors",
         ],
         bytes_expected: 30_236_760,
         sha256: Some("f65d0f325faadc1e121c319e2faa41170d3fa07d8c89abd48ca5358d9a223de2"),
@@ -38,7 +37,6 @@ const ARTIFACTS: [Artifact; 3] = [
         name: "tokenizer.json",
         urls: &[
             "https://huggingface.co/minishlab/potion-base-8M/resolve/main/tokenizer.json",
-            "https://hf-mirror.com/minishlab/potion-base-8M/resolve/main/tokenizer.json",
         ],
         bytes_expected: 683_666,
         sha256: Some("e67e803f624fb4d67dea1c730d06e1067e1b14d830e2c2202569e3ef0f70bb50"),
@@ -47,7 +45,6 @@ const ARTIFACTS: [Artifact; 3] = [
         name: "config.json",
         urls: &[
             "https://huggingface.co/minishlab/potion-base-8M/resolve/main/config.json",
-            "https://hf-mirror.com/minishlab/potion-base-8M/resolve/main/config.json",
         ],
         bytes_expected: 202,
         sha256: Some("2a6ac0e9aaa356a68a5688070db78fc3a464fefe85d2f06a1905ce3718687553"),
@@ -60,7 +57,6 @@ const OCR_ARTIFACTS: [Artifact; 3] = [
         name: "det.onnx",
         urls: &[
             "https://huggingface.co/PaddlePaddle/PP-OCRv6_tiny_det_onnx/resolve/main/inference.onnx",
-            "https://hf-mirror.com/PaddlePaddle/PP-OCRv6_tiny_det_onnx/resolve/main/inference.onnx",
         ],
         bytes_expected: 1_780_590,
         sha256: Some("193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8"),
@@ -69,7 +65,6 @@ const OCR_ARTIFACTS: [Artifact; 3] = [
         name: "rec.onnx",
         urls: &[
             "https://huggingface.co/PaddlePaddle/PP-OCRv6_tiny_rec_onnx/resolve/main/inference.onnx",
-            "https://hf-mirror.com/PaddlePaddle/PP-OCRv6_tiny_rec_onnx/resolve/main/inference.onnx",
         ],
         bytes_expected: 4_462_639,
         sha256: Some("9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6"),
@@ -92,7 +87,6 @@ const INDRA_ARTIFACTS: [Artifact; 8] = [
         name: "det.onnx",
         urls: &[
             "https://huggingface.co/datalab-to/indra-ocr/resolve/v1.1.0/det.onnx",
-            "https://hf-mirror.com/datalab-to/indra-ocr/resolve/v1.1.0/det.onnx",
         ],
         bytes_expected: 389_948,
         sha256: Some("f2bd4cba23e9c328cf7ec824634e423e191a2c6aacbbf35c62bd79dd70f62f59"),
@@ -101,7 +95,6 @@ const INDRA_ARTIFACTS: [Artifact; 8] = [
         name: "rec.onnx",
         urls: &[
             "https://huggingface.co/datalab-to/indra-ocr/resolve/v1.1.0/rec.onnx",
-            "https://hf-mirror.com/datalab-to/indra-ocr/resolve/v1.1.0/rec.onnx",
         ],
         bytes_expected: 5_042_161,
         sha256: Some("475972a2710be4a3cbfeb2bc7f3624ffd563de07de42476fc7a290d4e1ece484"),
@@ -110,7 +103,6 @@ const INDRA_ARTIFACTS: [Artifact; 8] = [
         name: "rec_cjk.onnx",
         urls: &[
             "https://huggingface.co/datalab-to/indra-ocr/resolve/v1.1.0/rec_cjk.onnx",
-            "https://hf-mirror.com/datalab-to/indra-ocr/resolve/v1.1.0/rec_cjk.onnx",
         ],
         bytes_expected: 10_176_018,
         sha256: Some("4a035516a17e62cdf33a4fe2d88077654cb8841cff024685cdef4e351694ef50"),
@@ -119,7 +111,6 @@ const INDRA_ARTIFACTS: [Artifact; 8] = [
         name: "rec_rtl.onnx",
         urls: &[
             "https://huggingface.co/datalab-to/indra-ocr/resolve/v1.1.0/rec_rtl.onnx",
-            "https://hf-mirror.com/datalab-to/indra-ocr/resolve/v1.1.0/rec_rtl.onnx",
         ],
         bytes_expected: 4_812_710,
         sha256: Some("468796bd684486a8388c30c8b4ed2a26e3eeb1f8ff02831c24c2e12c79a2a834"),
@@ -128,7 +119,6 @@ const INDRA_ARTIFACTS: [Artifact; 8] = [
         name: "rec_world.onnx",
         urls: &[
             "https://huggingface.co/datalab-to/indra-ocr/resolve/v1.1.0/rec_world.onnx",
-            "https://hf-mirror.com/datalab-to/indra-ocr/resolve/v1.1.0/rec_world.onnx",
         ],
         bytes_expected: 5_627_990,
         sha256: Some("c8d1e59f21b04966f179d2d2d8e22b230d22110b3f89855bbbf2624a58c40043"),
@@ -137,7 +127,6 @@ const INDRA_ARTIFACTS: [Artifact; 8] = [
         name: "script.onnx",
         urls: &[
             "https://huggingface.co/datalab-to/indra-ocr/resolve/v1.1.0/script.onnx",
-            "https://hf-mirror.com/datalab-to/indra-ocr/resolve/v1.1.0/script.onnx",
         ],
         bytes_expected: 191_630,
         sha256: Some("b6ce4e926e19c243faaf37bd46880398bf2cb4ae56a29e1177a3b017c1280e36"),
@@ -146,7 +135,6 @@ const INDRA_ARTIFACTS: [Artifact; 8] = [
         name: "orient.onnx",
         urls: &[
             "https://huggingface.co/datalab-to/indra-ocr/resolve/v1.1.0/orient.onnx",
-            "https://hf-mirror.com/datalab-to/indra-ocr/resolve/v1.1.0/orient.onnx",
         ],
         bytes_expected: 371_802,
         sha256: Some("20eaf670f55a7cf9facfe1bdd6c7b8e40be75bbf4d48a3df43f66aa3bbd874fd"),
@@ -155,7 +143,6 @@ const INDRA_ARTIFACTS: [Artifact; 8] = [
         name: "meta.json",
         urls: &[
             "https://huggingface.co/datalab-to/indra-ocr/resolve/v1.1.0/meta.json",
-            "https://hf-mirror.com/datalab-to/indra-ocr/resolve/v1.1.0/meta.json",
         ],
         bytes_expected: 211_869,
         sha256: Some("4ce4c94b46f5d644033c02e718322014ff4081270f385038c571912b56696339"),
@@ -167,7 +154,6 @@ pub const SMART_ARTIFACTS: [Artifact; 3] = [
         name: "model.onnx",
         urls: &[
             "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model_quantized.onnx",
-            "https://hf-mirror.com/Xenova/bge-small-en-v1.5/resolve/main/onnx/model_quantized.onnx",
         ],
         bytes_expected: 34_014_426,
         sha256: Some("6c9c6101a956d62dfb5e7190c538226c0c5bb9cb27b651234b6df063ee7dbfe4"),
@@ -176,7 +162,6 @@ pub const SMART_ARTIFACTS: [Artifact; 3] = [
         name: "tokenizer.json",
         urls: &[
             "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/tokenizer.json",
-            "https://hf-mirror.com/Xenova/bge-small-en-v1.5/resolve/main/tokenizer.json",
         ],
         bytes_expected: 711_396,
         sha256: Some("d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"),
@@ -185,7 +170,6 @@ pub const SMART_ARTIFACTS: [Artifact; 3] = [
         name: "config.json",
         urls: &[
             "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/config.json",
-            "https://hf-mirror.com/Xenova/bge-small-en-v1.5/resolve/main/config.json",
         ],
         bytes_expected: 683,
         sha256: Some("fa73f90bf92c8cace1fbcb709626306f2bdbc9ea3e5b5f94b440df9b6aa56350"),
@@ -201,7 +185,6 @@ pub const VISUAL_ARTIFACTS: [Artifact; 4] = [
         name: "vision_model.onnx",
         urls: &[
             "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model_quantized.onnx",
-            "https://hf-mirror.com/Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model_quantized.onnx",
         ],
         bytes_expected: 89_117_001,
         sha256: Some("98ae9acf1f7e3233fac66f3b965e5e0b1ebe744527dcf5e3b5ff0e4ef80617be"),
@@ -210,7 +193,6 @@ pub const VISUAL_ARTIFACTS: [Artifact; 4] = [
         name: "text_model.onnx",
         urls: &[
             "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/text_model_quantized.onnx",
-            "https://hf-mirror.com/Xenova/clip-vit-base-patch32/resolve/main/onnx/text_model_quantized.onnx",
         ],
         bytes_expected: 64_504_507,
         sha256: Some("c5caef8bde14268ad23f01116dd72135abbf6182d14b407e375336838372bd58"),
@@ -219,7 +201,6 @@ pub const VISUAL_ARTIFACTS: [Artifact; 4] = [
         name: "tokenizer.json",
         urls: &[
             "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/tokenizer.json",
-            "https://hf-mirror.com/Xenova/clip-vit-base-patch32/resolve/main/tokenizer.json",
         ],
         bytes_expected: 2_224_119,
         sha256: Some("f7f3b7af117d467b58374797691a6438d3e6b9e9cef800dfd5dced7f697a90cd"),
@@ -228,7 +209,6 @@ pub const VISUAL_ARTIFACTS: [Artifact; 4] = [
         name: "config.json",
         urls: &[
             "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/config.json",
-            "https://hf-mirror.com/Xenova/clip-vit-base-patch32/resolve/main/config.json",
         ],
         bytes_expected: 4_524,
         sha256: Some("493ef57ff783e42d1530c91b53469b7fdf8db8a9c1408e86998fcb7899a4f495"),

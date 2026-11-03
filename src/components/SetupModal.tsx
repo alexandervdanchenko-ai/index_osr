@@ -42,7 +42,8 @@ function pickEngine(status: OcrStatus): OcrEngine {
 export function SetupModal({ onSetupCompleted }: { onSetupCompleted: () => void }) {
   const [step, setStep] = useState<0 | 1 | 2>(0);
   // Start at sign-in is on by default, so the app is one shortcut away after a restart.
-  const startAtLogin = true;
+  // index_osr: CourtMonitor starts the index service; no separate autostart.
+  const startAtLogin = false;
   const [suggestedDirs, setSuggestedDirs] = useState<string[]>([]);
   const [selectedDirs, setSelectedDirs] = useState<string[]>([]);
   const [customDirInput, setCustomDirInput] = useState("");
@@ -249,10 +250,9 @@ export function SetupModal({ onSetupCompleted }: { onSetupCompleted: () => void 
         ocrEngine: selectedOcrEngine ?? (ocrStatus ? pickEngine(ocrStatus) : "tesseract"),
         appMode: "launcher",
       });
-      // The default text model downloads without asking. Failure is not fatal:
-      // keyword search works without it, and Settings can retry.
-      invoke("download_models").catch((err) => console.warn("Model download did not start:", err));
-      // Start at sign-in is on by default (see `startAtLogin`).
+      // index_osr: nothing is downloaded without an explicit click. Models ship
+      // with the installer; Settings offers a manual download as a fallback.
+      // Start at sign-in is off by default (see `startAtLogin`).
       if (startAtLogin) {
         await invoke("set_autostart", { enabled: true }).catch((err) =>
           console.warn("Could not enable start at sign-in:", err),

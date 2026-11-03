@@ -152,12 +152,12 @@ pub fn serve_on_listener(
     token: String,
     shutdown: Arc<AtomicBool>,
 ) -> Result<(), HttpError> {
+    // index_osr: the token stays in its file; it is never echoed to a log.
     eprintln!(
-        "[Kensaku HTTP] listening on http://{} (token: {})",
+        "[Kensaku HTTP] listening on http://{} (token in http.token)",
         listener
             .local_addr()
             .map_err(|e| HttpError::Io(e.to_string()))?,
-        token
     );
 
     let state = Arc::new(HttpState {

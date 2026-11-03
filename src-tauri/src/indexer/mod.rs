@@ -1621,12 +1621,8 @@ impl IndexerManager {
                     Err(e) => eprintln!("[Kensaku OCR] could not save the engine switch: {e}"),
                 }
             }
-            if crate::ocr::engine_name() == crate::ocr::ACCURATE && !crate::ocr::pack_present() {
-                crate::models::download_ocr_pack();
-            }
-            if crate::ocr::engine_name() == crate::ocr::INDRA && !crate::ocr_indra::pack_present() {
-                crate::models::download_indra_pack();
-            }
+            // index_osr: OCR packs are never fetched automatically during a crawl.
+            // A missing pack leaves images unread until the user installs it.
         }
 
         let signature = crate::ocr::signature();
