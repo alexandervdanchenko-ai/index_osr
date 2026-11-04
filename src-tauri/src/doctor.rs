@@ -100,19 +100,19 @@ fn format_bytes(bytes: u64) -> String {
     const GIB: f64 = MIB * 1024.0;
     let value = bytes as f64;
     if value >= GIB {
-        format!("{:.1} GiB", value / GIB)
+        format!("{:.1} ГБ", value / GIB)
     } else if value >= MIB {
-        format!("{:.1} MiB", value / MIB)
+        format!("{:.1} МБ", value / MIB)
     } else if value >= KIB {
-        format!("{:.1} KiB", value / KIB)
+        format!("{:.1} КБ", value / KIB)
     } else {
-        format!("{} B", bytes)
+        format!("{} Б", bytes)
     }
 }
 
 fn check_config_dir_writable() -> DoctorCheck {
     const ID: &str = "config_dir";
-    const LABEL: &str = "Config directory writable";
+    const LABEL: &str = "Запись в папку настроек";
     let dir = KensakuConfig::config_dir();
 
     let probe = dir.join(format!(".doctor-write-probe-{}", std::process::id()));
@@ -121,25 +121,25 @@ fn check_config_dir_writable() -> DoctorCheck {
         .and_then(|_| std::fs::remove_file(&probe));
 
     match result {
-        Ok(()) => ok(ID, LABEL, format!("Writable: {}", dir.display())),
+        Ok(()) => ok(ID, LABEL, format!("Запись разрешена: {}", dir.display())),
         Err(e) => fail(
             ID,
             LABEL,
-            format!("Not writable ({}): {}", dir.display(), e),
-            Some("Check ownership and permissions on your config directory.".to_string()),
+            format!("Запись запрещена ({}): {}", dir.display(), e),
+            Some("Проверьте владельца и права доступа к папке настроек.".to_string()),
         ),
     }
 }
 
 fn check_disk_space(config_dir: &Path) -> DoctorCheck {
     const ID: &str = "disk_space";
-    const LABEL: &str = "Disk space";
+    const LABEL: &str = "Место на диске";
     const MIB: u64 = 1024 * 1024;
 
     match fs4::available_space(config_dir) {
         Ok(bytes) => {
             let detail = format!(
-                "{} available for the index, thumbnails and model packs.",
+                "Свободно {} для индекса, миниатюр и пакетов моделей.",
                 format_bytes(bytes)
             );
             if bytes < 100 * MIB {
@@ -147,7 +147,7 @@ fn check_disk_space(config_dir: &Path) -> DoctorCheck {
                     ID,
                     LABEL,
                     detail,
-                    Some("Free disk space before indexing; writes will fail soon.".to_string()),
+                    Some("Освободите место на диске перед индексацией, иначе запись скоро станет невозможной.".to_string()),
                 )
             } else if bytes < 1024 * MIB {
                 warn(
@@ -155,7 +155,7 @@ fn check_disk_space(config_dir: &Path) -> DoctorCheck {
                     LABEL,
                     detail,
                     Some(
-                        "Consider freeing space before a large reindex or model download."
+                        "Рекомендуется освободить место перед полной переиндексацией или загрузкой моделей."
                             .to_string(),
                     ),
                 )
@@ -167,7 +167,7 @@ fn check_disk_space(config_dir: &Path) -> DoctorCheck {
             ID,
             LABEL,
             format!(
-                "Could not read free space for {}: {}",
+                "Не удалось определить свободное место для {}: {}",
                 config_dir.display(),
                 e
             ),
@@ -178,7 +178,7 @@ fn check_disk_space(config_dir: &Path) -> DoctorCheck {
 
 fn check_crash_log() -> DoctorCheck {
     const ID: &str = "crash_log";
-    const LABEL: &str = "Crash log";
+    const LABEL: &str = "Журнал сбоев";
 
     let path = crate::crashlog::path();
     let last_line = crate::crashlog::tail(1).pop();
@@ -192,20 +192,20 @@ fn check_crash_log() -> DoctorCheck {
             // user's editor rather than trying to interpret the crash.
             Some(path.display().to_string()),
         ),
-        _ => ok(ID, LABEL, "No crash log entries.".to_string()),
+        _ => ok(ID, LABEL, "Записей о сбоях нет.".to_string()),
     }
 }
 
 fn check_metadata_db(config_dir: &Path) -> DoctorCheck {
     const ID: &str = "metadata_db";
-    const LABEL: &str = "Metadata database";
+    const LABEL: &str = "База метаданных";
     let path = config_dir.join("metadata.db");
 
     if !path.is_file() {
         return warn(
             ID,
             LABEL,
-            "No metadata database yet (nothing indexed).".to_string(),
+            "База метаданных ещё не создана (ничего не проиндексировано).".to_string(),
             None,
         );
     }
@@ -218,13 +218,13 @@ fn check_metadata_db(config_dir: &Path) -> DoctorCheck {
         Err(e) => {
             let message = e.to_string();
             if is_locked(&message) {
-                return warn(ID, LABEL, "index in use".to_string(), None);
+                return warn(ID, LABEL, "Индекс занят другим процессом".to_string(), None);
             }
             return fail(
                 ID,
                 LABEL,
-                format!("Cannot open database: {}", message),
-                Some("Reset Kensaku data from Settings if the database is corrupt.".to_string()),
+                format!("Не удалось открыть базу: {}", message),
+                Some("Если база повреждена, сбросьте данные программы в настройках.".to_string()),
             );
         }
     };
@@ -236,13 +236,13 @@ fn check_metadata_db(config_dir: &Path) -> DoctorCheck {
         Err(e) => {
             let message = e.to_string();
             if is_locked(&message) {
-                return warn(ID, LABEL, "index in use".to_string(), None);
+                return warn(ID, LABEL, "Индекс занят другим процессом".to_string(), None);
             }
             return fail(
                 ID,
                 LABEL,
-                format!("quick_check failed: {}", message),
-                Some("Reset Kensaku data from Settings to rebuild the index.".to_string()),
+                format!("Проверка целостности (quick_check) не выполнена: {}", message),
+                Some("Сбросьте данные программы в настройках, чтобы перестроить индекс.".to_string()),
             );
         }
     };
@@ -251,8 +251,8 @@ fn check_metadata_db(config_dir: &Path) -> DoctorCheck {
         return fail(
             ID,
             LABEL,
-            format!("quick_check reported: {}", quick_check),
-            Some("Reset Kensaku data from Settings to rebuild the index.".to_string()),
+            format!("Проверка целостности (quick_check) сообщила: {}", quick_check),
+            Some("Сбросьте данные программы в настройках, чтобы перестроить индекс.".to_string()),
         );
     }
 
@@ -263,8 +263,8 @@ fn check_metadata_db(config_dir: &Path) -> DoctorCheck {
 
     let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
     let detail = match nodes {
-        Some(count) => format!("quick_check ok · {} nodes · {}", count, format_bytes(size)),
-        None => format!("quick_check ok · {}", format_bytes(size)),
+        Some(count) => format!("Целостность в норме · записей: {} · {}", count, format_bytes(size)),
+        None => format!("Целостность в норме · {}", format_bytes(size)),
     };
 
     ok(ID, LABEL, detail)
@@ -272,14 +272,14 @@ fn check_metadata_db(config_dir: &Path) -> DoctorCheck {
 
 fn check_full_text_index(nodes: usize) -> DoctorCheck {
     const ID: &str = "full_text_index";
-    const LABEL: &str = "Full-text index";
+    const LABEL: &str = "Полнотекстовый индекс";
     let dir = KensakuConfig::index_dir();
 
     if !dir.is_dir() {
         return warn(
             ID,
             LABEL,
-            "Index directory not created yet.".to_string(),
+            "Папка индекса ещё не создана.".to_string(),
             None,
         );
     }
@@ -290,10 +290,10 @@ fn check_full_text_index(nodes: usize) -> DoctorCheck {
             ID,
             LABEL,
             format!(
-                "Index directory is empty while {} nodes are indexed.",
+                "Папка индекса пуста, хотя проиндексировано записей: {}.",
                 nodes
             ),
-            Some("Run >reindex to rebuild the full-text index.".to_string()),
+            Some("Выполните >reindex, чтобы перестроить полнотекстовый индекс.".to_string()),
         );
     }
 
@@ -302,8 +302,8 @@ fn check_full_text_index(nodes: usize) -> DoctorCheck {
         .ok()
         .and_then(|s| s.trim().parse::<u32>().ok());
     let ver_label = match schema_ver {
-        Some(v) => format!("schema v{v} (kensaku-cjk)"),
-        None => "schema v1 (legacy)".to_string(),
+        Some(v) => format!("схема v{v} (kensaku-cjk)"),
+        None => "схема v1 (устаревшая)".to_string(),
     };
 
     let legacy_backups = dir
@@ -319,7 +319,7 @@ fn check_full_text_index(nodes: usize) -> DoctorCheck {
 
     let detail = if legacy_backups > 0 {
         format!(
-            "{} · {} · {} ({} legacy backup)",
+            "{} · {} · {} (резервных копий старого индекса: {})",
             format_bytes(bytes),
             ver_label,
             dir.display(),
@@ -339,20 +339,20 @@ fn check_full_text_index(nodes: usize) -> DoctorCheck {
 
 fn check_semantic_index(units: usize) -> DoctorCheck {
     const ID: &str = "semantic_index";
-    const LABEL: &str = "Semantic index";
+    const LABEL: &str = "Смысловой индекс";
 
     let model = crate::embed::ModelRegistry::global();
     if !model.is_enabled() {
         return ok(
             ID,
             LABEL,
-            "Semantic indexing disabled (provider: none).".to_string(),
+            "Смысловая индексация выключена (провайдер: none).".to_string(),
         );
     }
 
     let detail = if let Some(ref fallback) = model.fallback_reason {
         format!(
-            "provider: {} · model_id: {} · dim: {} · {} units (fallback: {})",
+            "Провайдер: {} · модель: {} · размерность: {} · фрагментов: {} (запасной вариант: {})",
             model.provider_name(),
             model.model_id,
             model.dim,
@@ -361,7 +361,7 @@ fn check_semantic_index(units: usize) -> DoctorCheck {
         )
     } else {
         format!(
-            "provider: {} · model_id: {} · dim: {} · {} units",
+            "Провайдер: {} · модель: {} · размерность: {} · фрагментов: {}",
             model.provider_name(),
             model.model_id,
             model.dim,
@@ -375,15 +375,15 @@ fn check_semantic_index(units: usize) -> DoctorCheck {
         warn(
             ID,
             LABEL,
-            format!("{} · no units indexed yet", detail),
-            Some("Run >reindex once model files are available.".to_string()),
+            format!("{} · фрагменты ещё не проиндексированы", detail),
+            Some("Выполните >reindex после загрузки файлов модели.".to_string()),
         )
     }
 }
 
 fn check_watched_folders(state: &AppState) -> DoctorCheck {
     const ID: &str = "watched_folders";
-    const LABEL: &str = "Watched folders";
+    const LABEL: &str = "Отслеживаемые папки";
 
     let roots = state.indexer.config.read().watched_dirs.clone();
 
@@ -391,8 +391,8 @@ fn check_watched_folders(state: &AppState) -> DoctorCheck {
         return warn(
             ID,
             LABEL,
-            "No watched folders configured.".to_string(),
-            Some("Add at least one folder in setup or Settings.".to_string()),
+            "Отслеживаемые папки не заданы.".to_string(),
+            Some("Добавьте хотя бы одну папку при первоначальной настройке или в настройках.".to_string()),
         );
     }
 
@@ -411,7 +411,7 @@ fn check_watched_folders(state: &AppState) -> DoctorCheck {
     }
 
     if missing.is_empty() {
-        return ok(ID, LABEL, format!("{} root(s) readable.", roots.len()));
+        return ok(ID, LABEL, format!("Доступно для чтения папок: {}.", roots.len()));
     }
 
     let shown = missing
@@ -422,7 +422,7 @@ fn check_watched_folders(state: &AppState) -> DoctorCheck {
         .join(", ");
     let suffix = if missing.len() > 3 { ", ..." } else { "" };
     let detail = format!(
-        "{} of {} root(s) missing or unreadable: {}{}",
+        "Недоступно {} из {} папок (отсутствуют или нет прав на чтение): {}{}",
         missing.len(),
         roots.len(),
         shown,
@@ -433,22 +433,22 @@ fn check_watched_folders(state: &AppState) -> DoctorCheck {
         ID,
         LABEL,
         detail,
-        Some("Remove missing folders or reconnect the drive in Settings.".to_string()),
+        Some("Удалите отсутствующие папки в настройках или подключите диск заново.".to_string()),
     )
 }
 
 fn check_watcher(state: &AppState) -> DoctorCheck {
     const ID: &str = "watcher";
-    const LABEL: &str = "File watcher";
+    const LABEL: &str = "Отслеживание изменений файлов";
 
     if state.indexer.watcher_ok() {
-        ok(ID, LABEL, "Live filesystem watcher is running.".to_string())
+        ok(ID, LABEL, "Отслеживание изменений файлов работает.".to_string())
     } else {
         warn(
             ID,
             LABEL,
-            "Watcher is not running (indexing idle or failed to start).".to_string(),
-            Some("Run >reindex to restart the watcher.".to_string()),
+            "Отслеживание не работает (индексация не запущена или не смогла запуститься).".to_string(),
+            Some("Выполните >reindex, чтобы перезапустить отслеживание.".to_string()),
         )
     }
 }
@@ -456,8 +456,8 @@ fn check_watcher(state: &AppState) -> DoctorCheck {
 #[cfg(target_os = "linux")]
 fn check_inotify_limit() -> DoctorCheck {
     const ID: &str = "inotify";
-    const LABEL: &str = "Linux inotify limit";
-    const FIX: &str = "raise fs.inotify.max_user_watches";
+    const LABEL: &str = "Лимит inotify в Linux";
+    const FIX: &str = "Увеличьте fs.inotify.max_user_watches";
     const MINIMUM: u64 = 100_000;
 
     let watches = std::fs::read_to_string("/proc/sys/fs/inotify/max_user_watches")
@@ -469,13 +469,13 @@ fn check_inotify_limit() -> DoctorCheck {
         Some(value) => warn(
             ID,
             LABEL,
-            format!("max_user_watches = {} (below {})", value, MINIMUM),
+            format!("max_user_watches = {} (меньше {})", value, MINIMUM),
             Some(FIX.to_string()),
         ),
         None => warn(
             ID,
             LABEL,
-            "Could not read /proc/sys/fs/inotify/max_user_watches.".to_string(),
+            "Не удалось прочитать /proc/sys/fs/inotify/max_user_watches.".to_string(),
             Some(FIX.to_string()),
         ),
     }
@@ -483,8 +483,8 @@ fn check_inotify_limit() -> DoctorCheck {
 
 fn check_models() -> DoctorCheck {
     const ID: &str = "models";
-    const LABEL: &str = "Model files";
-    const FIX: &str = "Download model files in AI & Semantic";
+    const LABEL: &str = "Файлы моделей";
+    const FIX: &str = "Загрузите файлы моделей в разделе «Смысловой поиск»";
 
     let status = models::status();
     let present = status.artifacts.iter().filter(|a| a.present).count();
@@ -495,7 +495,7 @@ fn check_models() -> DoctorCheck {
             ID,
             LABEL,
             format!(
-                "{}/{} artifacts present ({})",
+                "Файлов на месте: {} из {} ({})",
                 present,
                 total,
                 format_bytes(status.total_present_bytes)
@@ -513,7 +513,7 @@ fn check_models() -> DoctorCheck {
             ID,
             LABEL,
             format!(
-                "Missing {} of {} artifacts: {}",
+                "Отсутствует файлов: {} из {}: {}",
                 total - present,
                 total,
                 missing
@@ -525,10 +525,10 @@ fn check_models() -> DoctorCheck {
 
 fn check_ocr() -> DoctorCheck {
     const ID: &str = "ocr";
-    const LABEL: &str = "OCR engine";
+    const LABEL: &str = "Распознавание текста (OCR)";
 
     if !crate::indexer::extract::ocr_enabled() {
-        return ok(ID, LABEL, "OCR is turned off in Settings".to_string());
+        return ok(ID, LABEL, "Распознавание текста выключено в настройках".to_string());
     }
     let status = crate::indexer::extract::image::ocr_status();
     // The selected engine cannot run: say so instead of silently using
@@ -542,7 +542,7 @@ fn check_ocr() -> DoctorCheck {
         Some((name, problem)) if status.active_engine != status.engine => warn(
             ID,
             LABEL,
-            format!("{name} is selected but cannot run: {problem}. {detail}"),
+            format!("Выбран {name}, но он не может работать. {problem}. {detail}"),
             None,
         ),
         _ => ok(ID, LABEL, detail),
@@ -551,31 +551,31 @@ fn check_ocr() -> DoctorCheck {
         crate::ocr::INDRA => ok(
             ID,
             LABEL,
-            "Indra OCR is reading images (self-test passed)".to_string(),
+            "Изображения распознаёт Indra OCR (самопроверка пройдена)".to_string(),
         ),
-        crate::ocr::ACCURATE => fallback("PP-OCR is reading images (self-test passed)".to_string()),
+        crate::ocr::ACCURATE => fallback("Изображения распознаёт PP-OCR (самопроверка пройдена)".to_string()),
         crate::ocr::TESSERACT => fallback(format!(
-            "Tesseract is reading images · languages: {}",
+            "Изображения распознаёт Tesseract · языки: {}",
             status.languages.join(", ")
         )),
         _ => {
             let tesseract = if status.engine_present {
-                "Tesseract has no language data".to_string()
+                "У Tesseract нет языковых данных".to_string()
             } else {
                 match status.error {
-                    Some(error) => format!("Tesseract not found ({error})"),
-                    None => "Tesseract not found".to_string(),
+                    Some(error) => format!("Tesseract недоступен. {error}"),
+                    None => "Tesseract не найден".to_string(),
                 }
             };
             let accurate = status
                 .accurate_problem
-                .unwrap_or_else(|| "PP-OCR cannot run".to_string());
+                .unwrap_or_else(|| "PP-OCR не может работать".to_string());
             warn(
                 ID,
                 LABEL,
-                format!("No OCR engine can read images. {tesseract}; {accurate}."),
+                format!("Ни один движок OCR не может распознавать изображения. {tesseract}. {accurate}."),
                 Some(
-                    "Download the PP-OCR pack in Settings → Search, or install Tesseract"
+                    "Загрузите пакет PP-OCR в разделе «Настройки» - «Поиск» или установите Tesseract"
                         .to_string(),
                 ),
             )
@@ -585,7 +585,7 @@ fn check_ocr() -> DoctorCheck {
 
 fn check_ocr_pack() -> DoctorCheck {
     const ID: &str = "ocr_pack";
-    const LABEL: &str = "Accurate OCR pack";
+    const LABEL: &str = "Пакет точного OCR";
     let status = models::ocr_status();
     let present = status.artifacts.iter().filter(|a| a.present).count();
     let total = status.artifacts.len();
@@ -595,28 +595,28 @@ fn check_ocr_pack() -> DoctorCheck {
                 ID,
                 LABEL,
                 format!(
-                    "installed ({}) and verified on a test image",
+                    "Установлен ({}) и проверен на тестовом изображении",
                     format_bytes(status.total_present_bytes)
                 ),
             ),
-            Some(problem) => warn(ID, LABEL, format!("installed, but {problem}"), None),
+            Some(problem) => warn(ID, LABEL, format!("Установлен, но не работает. {problem}"), None),
         }
     } else if crate::ocr::engine_name() == crate::ocr::ACCURATE {
         warn(
             ID,
             LABEL,
             format!(
-                "Accurate OCR is selected but {} of {} artifacts are missing.",
+                "Выбран точный OCR, но отсутствует файлов: {} из {}.",
                 total - present,
                 total
             ),
-            Some("Download the accurate OCR pack in Settings → Search".to_string()),
+            Some("Загрузите пакет точного OCR в разделе «Настройки» - «Поиск»".to_string()),
         )
     } else {
         ok(
             ID,
             LABEL,
-            "Optional pack not installed; Tesseract is active.".to_string(),
+            "Дополнительный пакет не установлен, используется Tesseract.".to_string(),
         )
     }
 }
@@ -624,7 +624,7 @@ fn check_ocr_pack() -> DoctorCheck {
 fn check_version() -> DoctorCheck {
     ok(
         "version",
-        "Kensaku version",
+        "Версия программы",
         env!("CARGO_PKG_VERSION").to_string(),
     )
 }
@@ -634,13 +634,13 @@ fn check_external_extractors(
     failures: &[(std::path::PathBuf, String)],
 ) -> DoctorCheck {
     const ID: &str = "external_extractors";
-    const LABEL: &str = "External extractors";
+    const LABEL: &str = "Внешние обработчики";
 
     if extractors.is_empty() {
         return ok(
             ID,
             LABEL,
-            "No external extractors configured (none ship by default).".to_string(),
+            "Внешние обработчики не настроены (по умолчанию их нет).".to_string(),
         );
     }
 
@@ -655,13 +655,13 @@ fn check_external_extractors(
                 extractor.command.clone()
             };
             format!(
-                "{} → {} ({})",
+                "{}: {} ({})",
                 extractor.name.trim(),
                 command,
                 if extractor.enabled {
-                    "enabled"
+                    "включён"
                 } else {
-                    "disabled"
+                    "выключен"
                 }
             )
         })
@@ -681,9 +681,9 @@ fn check_external_extractors(
         return fail(
             ID,
             LABEL,
-            format!("Invalid configuration: {}", invalid.join("; ")),
+            format!("Ошибка в настройках: {}", invalid.join("; ")),
             Some(
-                "Fix the command, selectors or executable permissions in config.json.".to_string(),
+                "Исправьте команду, условия выбора файлов или права на запуск в config.json.".to_string(),
             ),
         );
     }
@@ -707,22 +707,22 @@ fn check_external_extractors(
                 } else {
                     reason.clone()
                 };
-                format!("{} — {}", path.display(), reason)
+                format!("{} - {}", path.display(), reason)
             })
             .collect::<Vec<_>>()
             .join("; ");
-        format!(" · {} recent failure(s): {}", failures.len(), shown)
+        format!(" · недавних сбоев - {}: {}", failures.len(), shown)
     };
     if enabled == 0 {
         return warn(
             ID,
             LABEL,
             format!(
-                "{} configured but none enabled: {}",
+                "Настроено - {}, но ни один не включён: {}",
                 extractors.len(),
                 commands
             ),
-            Some("Review each command, then set enabled: true in config.json.".to_string()),
+            Some("Проверьте каждую команду, затем укажите enabled: true в config.json.".to_string()),
         );
     }
 
@@ -730,14 +730,14 @@ fn check_external_extractors(
         return warn(
             ID,
             LABEL,
-            format!("{} enabled: {}{}", enabled, commands, failure_detail),
+            format!("Включено - {}: {}{}", enabled, commands, failure_detail),
             Some(
-                "Fix the plugin, then save its config or run a full reindex to retry.".to_string(),
+                "Исправьте обработчик, затем сохраните его настройки или выполните полную переиндексацию.".to_string(),
             ),
         );
     }
 
-    ok(ID, LABEL, format!("{} enabled: {}", enabled, commands))
+    ok(ID, LABEL, format!("Включено - {}: {}", enabled, commands))
 }
 
 /// Runs every doctor check. Never panics; each check degrades to a status.
@@ -809,7 +809,7 @@ mod tests {
     fn external_check_is_ok_when_nothing_is_configured() {
         let check = check_external_extractors(&[], &[]);
         assert_eq!(check.status, "ok");
-        assert!(check.detail.contains("none ship by default"));
+        assert!(check.detail.contains("по умолчанию их нет"));
     }
 
     #[test]

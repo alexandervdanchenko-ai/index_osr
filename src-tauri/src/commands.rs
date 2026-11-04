@@ -254,7 +254,7 @@ pub async fn get_snippets(
     // File reads stay off the async runtime even though they are cheap.
     tauri::async_runtime::spawn_blocking(move || compute_snippets(paths, &query))
         .await
-        .map_err(|e| format!("Snippet task failed: {}", e))
+        .map_err(|e| format!("Не удалось получить фрагмент текста: {}", e))
 }
 
 pub fn compute_snippets(paths: Vec<String>, query: &str) -> Vec<SnippetDto> {
@@ -475,7 +475,7 @@ pub async fn set_theme(theme: String, state: State<'_, AppState>) -> Result<(), 
         "dark" | "void" => "dark",
         _ => {
             return Err(format!(
-                "Unsupported theme '{}'. Expected 'light' or 'dark'.",
+                "Неизвестная тема оформления «{}». Допустимые значения: light или dark.",
                 theme
             ))
         }
@@ -492,7 +492,7 @@ pub async fn set_theme(theme: String, state: State<'_, AppState>) -> Result<(), 
 #[tauri::command]
 pub async fn open_file(path: String, state: State<'_, AppState>) -> Result<(), String> {
     state.indexer.metadata.read().record_open(Path::new(&path));
-    open::that(&path).map_err(|e| format!("Failed to open file: {}", e))
+    open::that(&path).map_err(|e| format!("Не удалось открыть файл: {}", e))
 }
 
 #[tauri::command]
@@ -504,7 +504,7 @@ pub async fn open_folder(path: String) -> Result<(), String> {
         p.parent().unwrap_or(p)
     };
 
-    open::that(target_dir).map_err(|e| format!("Failed to open folder: {}", e))
+    open::that(target_dir).map_err(|e| format!("Не удалось открыть папку: {}", e))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -530,13 +530,13 @@ pub async fn get_file_preview(path: String) -> Result<FilePreview, String> {
     // keep them off the async runtime.
     tauri::async_runtime::spawn_blocking(move || build_file_preview(&path))
         .await
-        .map_err(|e| format!("Preview task failed: {}", e))?
+        .map_err(|e| format!("Не удалось подготовить предпросмотр: {}", e))?
 }
 
 fn build_file_preview(path: &str) -> Result<FilePreview, String> {
     let p = Path::new(path);
     if !p.exists() {
-        return Err("File does not exist".to_string());
+        return Err("Файл не существует".to_string());
     }
 
     let meta = std::fs::metadata(p).map_err(|e| e.to_string())?;
@@ -651,12 +651,12 @@ fn thumbnail_cache_dir() -> PathBuf {
 fn ensure_thumbnail_cache_dir() -> Result<PathBuf, String> {
     let dir = thumbnail_cache_dir();
     std::fs::create_dir_all(&dir)
-        .map_err(|e| format!("Failed to create thumbnail cache directory: {}", e))?;
+        .map_err(|e| format!("Не удалось создать папку для миниатюр: {}", e))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))
-            .map_err(|e| format!("Failed to secure thumbnail cache directory: {}", e))?;
+            .map_err(|e| format!("Не удалось ограничить доступ к папке миниатюр: {}", e))?;
     }
     Ok(dir)
 }
@@ -668,7 +668,7 @@ fn generate_thumbnail(path: &str) -> Result<String, String> {
     preview
         .to_str()
         .map(|p| p.to_string())
-        .ok_or_else(|| "Preview path is not valid UTF-8".to_string())
+        .ok_or_else(|| "Путь к миниатюре содержит недопустимые символы (не UTF-8)".to_string())
 }
 
 /// Returns an absolute path to a cached 320px JPEG thumbnail.
@@ -680,7 +680,7 @@ fn generate_thumbnail(path: &str) -> Result<String, String> {
 pub async fn get_thumbnail(path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || generate_thumbnail(&path))
         .await
-        .map_err(|e| format!("Thumbnail task failed: {}", e))?
+        .map_err(|e| format!("Не удалось создать миниатюру: {}", e))?
 }
 
 /// Reports whether tesseract and its language data are usable.
@@ -691,7 +691,7 @@ pub async fn get_thumbnail(path: String) -> Result<String, String> {
 pub async fn get_ocr_status() -> Result<OcrStatus, String> {
     tauri::async_runtime::spawn_blocking(image::ocr_status)
         .await
-        .map_err(|e| format!("OCR status task failed: {}", e))
+        .map_err(|e| format!("Не удалось проверить состояние OCR: {}", e))
 }
 
 /// Downloads the pinned Russian and English tessdata files (index_osr), then
@@ -703,7 +703,7 @@ pub async fn download_ocr_language() -> Result<OcrStatus, String> {
         Ok::<OcrStatus, String>(image::ocr_status())
     })
     .await
-    .map_err(|e| format!("OCR download task failed: {}", e))?
+    .map_err(|e| format!("Не удалось загрузить языковые данные OCR: {}", e))?
 }
 
 /// Reports the optional accurate OCR pack inventory.
@@ -875,7 +875,7 @@ pub async fn execute_command(
             }
             Ok(CommandOutput {
                 success: true,
-                message: "Reindexing started across configured directories...".to_string(),
+                message: "Запущена переиндексация всех отслеживаемых папок...".to_string(),
             })
         }
         "doctor" => {
@@ -885,7 +885,7 @@ pub async fn execute_command(
             let status = state.indexer.get_status();
             let units_count = state.indexer.unit_store.read().len();
             let msg = format!(
-                "Kensaku Doctor Report:\n• Metadata entries: {}\n• Full-text indexed docs: {}\n• Semantic units: {}\n• Configured roots: {}\n• Status: {}\n• Metadata DB: WAL enabled (healthy)",
+                "Отчёт диагностики:\n• Записей в базе метаданных: {}\n• Документов в полнотекстовом индексе: {}\n• Смысловых фрагментов: {}\n• Отслеживаемых папок: {}\n• Состояние: {}\n• База метаданных: режим WAL включён (в норме)",
                 meta_count, status.content_indexed, units_count, roots, status.current_status
             );
             Ok(CommandOutput {
@@ -897,12 +897,12 @@ pub async fn execute_command(
             let units_count = state.indexer.unit_store.read().len();
             let cfg = state.indexer.config.read().clone();
             let status = if cfg.semantic_enabled {
-                "enabled"
+                "включён"
             } else {
-                "disabled"
+                "выключен"
             };
             let msg = format!(
-                "Active Model: {} (static int8 table, 256-dim, ~5µs/query, offline)\nStatus: {}\nLoaded Units: {}",
+                "Модель: {} (статическая таблица int8, размерность 256, около 5 мкс на запрос, без сети)\nСмысловой поиск: {}\nЗагружено фрагментов: {}",
                 cfg.semantic_model, status, units_count
             );
             Ok(CommandOutput {
@@ -912,7 +912,7 @@ pub async fn execute_command(
         }
         "add" if parts.get(1).copied() == Some("folder") => Ok(CommandOutput {
             success: true,
-            message: "Use the Settings dialog to add new folders to watch, or trigger >settings."
+            message: "Добавьте папки для отслеживания в настройках (команда >settings)."
                 .to_string(),
         }),
         "dupes" => Ok(CommandOutput {
@@ -926,7 +926,7 @@ pub async fn execute_command(
         _ => Ok(CommandOutput {
             success: false,
             message: format!(
-                "Unknown command '/{}'. Available: /reindex, /doctor, /model, /dupes, /add folder, /settings",
+                "Неизвестная команда «/{}». Доступны: /reindex, /doctor, /model, /dupes, /add folder, /settings",
                 trimmed
             ),
         }),
@@ -937,7 +937,7 @@ pub async fn execute_command(
 pub async fn read_file_content(path: String) -> Result<String, String> {
     let p = Path::new(&path);
     crate::indexer::content::read_text_content(p, 256_000)
-        .ok_or_else(|| "Could not read text content from file".to_string())
+        .ok_or_else(|| "Не удалось прочитать текст файла".to_string())
 }
 
 #[tauri::command]
@@ -1261,17 +1261,17 @@ pub async fn validate_directory(path: String) -> Result<String, String> {
         Some(std::path::PathBuf::from(&trimmed))
     };
     let Some(candidate) = resolved else {
-        return Err("Could not resolve the home directory".to_string());
+        return Err("Не удалось определить домашнюю папку".to_string());
     };
     if !candidate.exists() {
-        return Err(format!("Folder not found: {}", candidate.display()));
+        return Err(format!("Папка не найдена: {}", candidate.display()));
     }
     if !candidate.is_dir() {
-        return Err(format!("Not a folder: {}", candidate.display()));
+        return Err(format!("Это не папка: {}", candidate.display()));
     }
     let mut canonical = candidate
         .canonicalize()
-        .map_err(|e| format!("Could not resolve {}: {}", candidate.display(), e))?
+        .map_err(|e| format!("Не удалось определить полный путь {}: {}", candidate.display(), e))?
         .to_string_lossy()
         .to_string();
     // Windows canonicalize() returns an extended-length path (\\?\C:\...);
@@ -1308,14 +1308,14 @@ pub fn last_query() -> String {
 #[tauri::command]
 pub async fn reset_all(app: AppHandle, confirm: String) -> Result<(), String> {
     if confirm != "RESET" {
-        return Err("Reset cancelled: confirmation must be exactly \"RESET\".".to_string());
+        return Err("Сброс отменён: для подтверждения нужно ввести ровно «RESET».".to_string());
     }
 
     let dir = KensakuConfig::config_dir();
     std::fs::create_dir_all(&dir)
-        .map_err(|e| format!("Failed to create config directory: {}", e))?;
+        .map_err(|e| format!("Не удалось создать папку настроек: {}", e))?;
     let marker = dir.join(".reset-requested");
-    std::fs::write(&marker, b"1").map_err(|e| format!("Failed to write reset marker: {}", e))?;
+    std::fs::write(&marker, b"1").map_err(|e| format!("Не удалось записать отметку о сбросе: {}", e))?;
 
     // Never returns: the process exits and relaunches, and the fresh process
     // applies the pending reset before constructing any application state.
@@ -1328,7 +1328,7 @@ pub async fn rebuild_index(state: State<'_, AppState>) -> Result<(), String> {
     // stores and there is no safe way to wipe them from here.
     if state.daemon.is_some() {
         return Err(
-            "The index is owned by the Kensaku daemon. Stop the daemon, then rebuild.".to_string(),
+            "Индексом управляет фоновая служба программы. Остановите службу, затем перестройте индекс.".to_string(),
         );
     }
     state.indexer.clone().rebuild_all()
@@ -1348,10 +1348,10 @@ pub async fn get_reset_pending() -> Result<bool, String> {
 /// refuse to register (see `set_autostart`) and clear stale entries.
 fn autostart_handle() -> Result<AutoLaunch, String> {
     let exe = std::env::current_exe()
-        .map_err(|e| format!("Could not resolve the Kensaku executable path: {}", e))?;
+        .map_err(|e| format!("Не удалось определить путь к исполняемому файлу программы: {}", e))?;
     let exe = exe
         .to_str()
-        .ok_or_else(|| "Kensaku executable path is not valid UTF-8".to_string())?;
+        .ok_or_else(|| "Путь к исполняемому файлу программы содержит недопустимые символы (не UTF-8)".to_string())?;
 
     // macOS supports two mechanisms; the per-user LaunchAgent (`true`) is the
     // least intrusive and does not need AppleScript automation permissions.
@@ -1367,7 +1367,7 @@ fn autostart_handle() -> Result<AutoLaunch, String> {
 pub async fn get_autostart() -> Result<bool, String> {
     autostart_handle()?
         .is_enabled()
-        .map_err(|e| format!("Failed to read autostart state: {}", e))
+        .map_err(|e| format!("Не удалось прочитать состояние автозапуска: {}", e))
 }
 
 #[tauri::command]
@@ -1389,8 +1389,8 @@ pub async fn set_autostart(enabled: bool) -> Result<(), String> {
     };
     result.map_err(|e| {
         format!(
-            "Failed to {} autostart: {}",
-            if enabled { "enable" } else { "disable" },
+            "Не удалось {} автозапуск: {}",
+            if enabled { "включить" } else { "выключить" },
             e
         )
     })
@@ -1535,7 +1535,7 @@ fn parse_connect_client(client: &str) -> Result<crate::agent::connect::Client, S
     crate::agent::connect::Client::ALL
         .into_iter()
         .find(|candidate| candidate.id() == client)
-        .ok_or_else(|| format!("unknown client: {}", client))
+        .ok_or_else(|| format!("Неизвестный клиент: {}", client))
 }
 
 /// Extra facts for the hover card, fetched on demand. Dimensions are read
@@ -1566,7 +1566,7 @@ pub async fn get_file_details(path: String) -> Result<FileDetails, String> {
         })
     })
     .await
-    .map_err(|e| format!("Details task failed: {}", e))?
+    .map_err(|e| format!("Не удалось получить сведения о файле: {}", e))?
 }
 
 /// Thumbnail bytes as a `data:` URL. Using a data URL means the card never
@@ -1579,12 +1579,12 @@ pub async fn get_thumbnail_data(path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let thumb = generate_thumbnail(&path)?;
         let bytes = std::fs::read(&thumb)
-            .map_err(|e| format!("Failed to read thumbnail: {}", e))?;
+            .map_err(|e| format!("Не удалось прочитать миниатюру: {}", e))?;
         Ok(format!(
             "data:image/jpeg;base64,{}",
             base64::engine::general_purpose::STANDARD.encode(bytes)
         ))
     })
     .await
-    .map_err(|e| format!("Thumbnail task failed: {}", e))?
+    .map_err(|e| format!("Не удалось создать миниатюру: {}", e))?
 }

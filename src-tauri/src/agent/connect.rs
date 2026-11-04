@@ -205,10 +205,10 @@ fn backup_path(path: &std::path::Path) -> PathBuf {
 /// an existing file keeps its mode.
 fn write_atomic(path: &std::path::Path, contents: &str) -> Result<(), String> {
     let Some(parent) = path.parent() else {
-        return Err(format!("{} has no parent directory", path.display()));
+        return Err(format!("У пути {} нет родительской папки", path.display()));
     };
     std::fs::create_dir_all(parent)
-        .map_err(|e| format!("create dir {}: {}", parent.display(), e))?;
+        .map_err(|e| format!("Не удалось создать папку {}: {}", parent.display(), e))?;
 
     let file_name = path.file_name().unwrap_or_default().to_string_lossy();
     let stamp = std::time::SystemTime::now()
@@ -222,7 +222,7 @@ fn write_atomic(path: &std::path::Path, contents: &str) -> Result<(), String> {
         stamp
     ));
 
-    std::fs::write(&tmp, contents).map_err(|e| format!("write {}: {}", tmp.display(), e))?;
+    std::fs::write(&tmp, contents).map_err(|e| format!("Не удалось записать {}: {}", tmp.display(), e))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -233,7 +233,7 @@ fn write_atomic(path: &std::path::Path, contents: &str) -> Result<(), String> {
     }
     std::fs::rename(&tmp, path).map_err(|e| {
         let _ = std::fs::remove_file(&tmp);
-        format!("replace {}: {}", path.display(), e)
+        format!("Не удалось заменить {}: {}", path.display(), e)
     })
 }
 
@@ -245,7 +245,7 @@ fn write_atomic(path: &std::path::Path, contents: &str) -> Result<(), String> {
 pub fn install(client: Client) -> Result<InstallOutcome, String> {
     let Some(path) = primary_path(client) else {
         return Err(format!(
-            "could not locate the {} config directory on this machine",
+            "Не удалось найти папку настроек {} на этом компьютере",
             client.name()
         ));
     };
@@ -253,7 +253,7 @@ pub fn install(client: Client) -> Result<InstallOutcome, String> {
     let previous = if path.is_file() {
         Some(
             std::fs::read_to_string(&path)
-                .map_err(|e| format!("read {}: {}", path.display(), e))?,
+                .map_err(|e| format!("Не удалось прочитать {}: {}", path.display(), e))?,
         )
     } else {
         None
@@ -261,11 +261,11 @@ pub fn install(client: Client) -> Result<InstallOutcome, String> {
 
     let mut root = match &previous {
         Some(raw) => serde_json::from_str::<Value>(raw)
-            .map_err(|e| format!("{} is not valid JSON: {}", path.display(), e))?,
+            .map_err(|e| format!("Файл {} содержит ошибку JSON: {}", path.display(), e))?,
         None => json!({}),
     };
     if !root.is_object() {
-        return Err(format!("{} is not a JSON object", path.display()));
+        return Err(format!("Файл {} не является объектом JSON", path.display()));
     }
 
     let servers = root
@@ -275,7 +275,7 @@ pub fn install(client: Client) -> Result<InstallOutcome, String> {
         .or_insert_with(|| json!({}));
     if !servers.is_object() {
         return Err(format!(
-            "{} has a non-object \"mcpServers\" key; merge manually",
+            "В файле {} ключ «mcpServers» не является объектом. Добавьте настройки вручную",
             path.display()
         ));
     }
@@ -290,7 +290,7 @@ pub fn install(client: Client) -> Result<InstallOutcome, String> {
     if let Some(previous) = &previous {
         let backup_path = backup_path(&path);
         write_atomic(&backup_path, previous)
-            .map_err(|e| format!("write backup {}: {}", backup_path.display(), e))?;
+            .map_err(|e| format!("Не удалось сохранить резервную копию {}: {}", backup_path.display(), e))?;
         backup = Some(backup_path.to_string_lossy().into_owned());
     }
     write_atomic(&path, &merged)?;
@@ -307,7 +307,7 @@ pub fn install(client: Client) -> Result<InstallOutcome, String> {
         wrote: true,
         backup,
         message: format!(
-            "Kensaku MCP added to {}. Restart {} to pick it up.",
+            "Подключение MCP добавлено в {}. Перезапустите {}, чтобы изменения вступили в силу.",
             path.display(),
             client.name()
         ),

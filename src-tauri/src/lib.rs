@@ -395,8 +395,8 @@ pub fn run() {
             }
 
             // 2. Setup System Tray
-            let show_item = MenuItem::with_id(app, "toggle", "Open Search", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit Kensaku", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(app, "toggle", "Открыть поиск", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Выйти из программы", true, None::<&str>)?;
             let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
             // Windows users expect a click on the tray icon to offer the

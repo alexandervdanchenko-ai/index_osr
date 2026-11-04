@@ -50,7 +50,7 @@ pub fn parse_query(
         {
             let clamped = distance.min(NEAR_MAX_DISTANCE);
             if clamped != distance {
-                hints.push(format!("near[{distance}] clamped to {NEAR_MAX_DISTANCE}"));
+                hints.push(format!("near[{distance}]: расстояние уменьшено до {NEAR_MAX_DISTANCE}"));
             }
             pending_near = Some(clamped);
             is_first_token = false;
@@ -85,7 +85,7 @@ pub fn parse_query(
                             });
                             for cand in candidates.iter().take(2) {
                                 hints.push(format!(
-                                    "did you mean 📁 {}?",
+                                    "возможно, вы имели в виду 📁 {}?",
                                     cand.path.to_string_lossy()
                                 ));
                             }
@@ -167,13 +167,13 @@ pub fn parse_query(
                         if let Ok(distance) = value.parse::<u32>() {
                             let clamped = distance.min(NEAR_MAX_DISTANCE);
                             if clamped != distance {
-                                hints.push(format!("near:{distance} clamped to {NEAR_MAX_DISTANCE}"));
+                                hints.push(format!("near:{distance}: расстояние уменьшено до {NEAR_MAX_DISTANCE}"));
                             }
                             pending_near = Some(clamped);
                             continue;
                         }
                         hints.push(format!(
-                            "Invalid near filter '{}'; use near:5 (or a near[5] b)",
+                            "Неверный фильтр near «{}»: используйте near:5 (или a near[5] b)",
                             value
                         ));
                         push_term!(Term {
@@ -259,7 +259,7 @@ pub fn parse_query(
                                     });
                                     for cand in candidates.iter().take(2) {
                                         hints.push(format!(
-                                            "did you mean 📁 {}?",
+                                            "возможно, вы имели в виду 📁 {}?",
                                             cand.path.to_string_lossy()
                                         ));
                                     }
@@ -314,7 +314,7 @@ pub fn parse_query(
                             });
                         } else {
                             hints.push(format!(
-                                "Invalid modified filter '{}'; use <7d, >30d, 7d..30d",
+                                "Неверный фильтр modified «{}»: используйте <7d, >30d, 7d..30d",
                                 value
                             ));
                             push_term!(Term {
@@ -341,7 +341,7 @@ pub fn parse_query(
                             });
                         } else {
                             hints.push(format!(
-                                "Invalid size filter '{}'; use >2mb, <100kb, 1mb..10mb",
+                                "Неверный фильтр size «{}»: используйте >2mb, <100kb, 1mb..10mb",
                                 value
                             ));
                             push_term!(Term {
@@ -376,7 +376,7 @@ pub fn parse_query(
                             });
                         } else {
                             hints.push(format!(
-                                "Unknown 'is:{}' filter; use is:image, is:dir, is:file",
+                                "Неизвестный фильтр «is:{}»: используйте is:image, is:dir, is:file",
                                 value
                             ));
                             push_term!(Term {
@@ -753,11 +753,11 @@ mod tests {
     fn near_distance_above_max_is_clamped_with_a_hint() {
         let query = parse("mouse near[5000] button");
         assert_eq!(query.proximity, vec![(0, 1, 100)]);
-        assert!(query.hints.iter().any(|h| h.contains("clamped to 100")));
+        assert!(query.hints.iter().any(|h| h.contains("уменьшено до 100")));
 
         let query = parse("mouse near:5000 button");
         assert_eq!(query.proximity, vec![(0, 1, 100)]);
-        assert!(query.hints.iter().any(|h| h.contains("clamped to 100")));
+        assert!(query.hints.iter().any(|h| h.contains("уменьшено до 100")));
     }
 
     #[test]
@@ -765,7 +765,7 @@ mod tests {
         let query = parse("mouse near[100] button");
         assert_eq!(query.proximity, vec![(0, 1, 100)]);
         assert!(
-            !query.hints.iter().any(|h| h.contains("clamped")),
+            !query.hints.iter().any(|h| h.contains("уменьшено")),
             "boundary value must not emit a clamp hint, got {:?}",
             query.hints
         );
@@ -777,7 +777,7 @@ mod tests {
         assert!(query
             .hints
             .iter()
-            .any(|h| h.contains("near:900 clamped to 100")));
+            .any(|h| h.contains("near:900: расстояние уменьшено до 100")));
     }
 
     #[test]
@@ -787,7 +787,7 @@ mod tests {
             query
                 .hints
                 .iter()
-                .any(|h| h.contains("Invalid near filter")),
+                .any(|h| h.contains("Неверный фильтр near")),
             "expected a malformed-near hint, got {:?}",
             query.hints
         );

@@ -134,20 +134,20 @@ fn runtime_probe() -> &'static Result<String, String> {
         let loaded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             ort::init_from(&path).map(|_| ()).map_err(|e| e.to_string())
         }))
-        .unwrap_or_else(|_| Err("the loader panicked".to_string()));
+        .unwrap_or_else(|_| Err("загрузчик аварийно завершился".to_string()));
         let result = loaded.and_then(|()| {
             std::panic::catch_unwind(|| {
                 let _ = ort::api();
             })
-            .map_err(|_| "the library is too old for this build (needs 1.31+)".to_string())
+            .map_err(|_| "библиотека слишком старая для этой сборки (нужна версия 1.31 или новее)".to_string())
         });
         match result {
             Ok(()) => Ok(path),
             Err(e) => {
                 let reason = if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
-                    "PP-OCR needs a Mac with Apple silicon".to_string()
+                    "Для PP-OCR нужен Mac с процессором Apple silicon".to_string()
                 } else {
-                    format!("ONNX Runtime could not be loaded ({e})")
+                    format!("Не удалось загрузить ONNX Runtime ({e})")
                 };
                 eprintln!("[Kensaku OCR] {reason}; tried {path:?}");
                 Err(reason)
@@ -173,10 +173,10 @@ pub fn runtime_loadable() -> bool {
 /// when it can.
 pub fn accurate_problem() -> Option<String> {
     if !accurate_compiled() {
-        return Some("PP-OCR is not part of this build".into());
+        return Some("PP-OCR не входит в эту сборку программы".into());
     }
     if !pack_present() {
-        return Some("PP-OCR pack is not downloaded yet".into());
+        return Some("Пакет PP-OCR ещё не загружен".into());
     }
     #[cfg(feature = "accurate-ocr")]
     if let Err(reason) = runtime_probe() {
@@ -443,25 +443,25 @@ pub fn self_test() -> Result<(), String> {
         }
         if !pack_present() {
             // Not cached: the pack may be downloaded later in this process.
-            return Err("PP-OCR pack is not downloaded yet".into());
+            return Err("Пакет PP-OCR ещё не загружен".into());
         }
         if let Err(reason) = runtime_probe() {
             return Err(reason.clone());
         }
         let result = (|| {
             let image = image::load_from_memory(SELF_TEST_IMAGE)
-                .map_err(|e| format!("self-test image is unreadable: {e}"))?;
-            let engine = accurate_engine().ok_or("PP-OCR pack failed to load")?;
+                .map_err(|e| format!("Тестовое изображение для самопроверки не читается: {e}"))?;
+            let engine = accurate_engine().ok_or("Не удалось загрузить пакет PP-OCR")?;
             match recognize(&engine, &image) {
                 OcrOutcome::Text(text) => {
                     let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
                     if normalized.to_lowercase().contains(SELF_TEST_EXPECTED) {
                         Ok(())
                     } else {
-                        Err(format!("PP-OCR misread its self-test: {normalized:?}"))
+                        Err(format!("PP-OCR неверно распознал тестовое изображение: {normalized:?}"))
                     }
                 }
-                _ => Err("PP-OCR read nothing in its self-test".to_string()),
+                _ => Err("PP-OCR не распознал текст на тестовом изображении".to_string()),
             }
         })();
         if let Err(reason) = &result {
@@ -471,7 +471,7 @@ pub fn self_test() -> Result<(), String> {
     }
     #[cfg(not(feature = "accurate-ocr"))]
     {
-        Err("PP-OCR is not part of this build".into())
+        Err("PP-OCR не входит в эту сборку программы".into())
     }
 }
 

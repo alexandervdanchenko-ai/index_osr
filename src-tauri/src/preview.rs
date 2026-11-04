@@ -74,12 +74,12 @@ pub fn preview_jpeg(source: &Path, out_dir: &Path) -> Result<PathBuf, String> {
     let name = source
         .file_name()
         .and_then(|n| n.to_str())
-        .ok_or_else(|| "file has no name".to_string())?;
+        .ok_or_else(|| "У файла нет имени".to_string())?;
     match kind_for(name) {
         Some(Kind::Image) => crate::indexer::extract::image::thumbnail(source, out_dir)
-            .ok_or_else(|| format!("could not decode image {}", name)),
+            .ok_or_else(|| format!("Не удалось прочитать изображение {}", name)),
         Some(Kind::Pdf) => render_external(source, out_dir, Kind::Pdf),
-        None => Err(format!("no preview for {}", name)),
+        None => Err(format!("Для {} нет предпросмотра", name)),
     }
 }
 
@@ -104,11 +104,11 @@ fn render_external(source: &Path, out_dir: &Path, kind: Kind) -> Result<PathBuf,
     if is_fresh(&target, source) {
         return Ok(target);
     }
-    std::fs::create_dir_all(out_dir).map_err(|e| format!("create preview dir: {}", e))?;
+    std::fs::create_dir_all(out_dir).map_err(|e| format!("Не удалось создать папку предпросмотра: {}", e))?;
 
     let tool = match kind {
-        Kind::Pdf => find_tool("pdftoppm").ok_or("pdftoppm (poppler) is not installed")?,
-        Kind::Image => return Err("images use the thumbnail path".into()),
+        Kind::Pdf => find_tool("pdftoppm").ok_or("Не установлена программа pdftoppm (poppler)")?,
+        Kind::Image => return Err("Для изображений используется миниатюра".into()),
     };
 
     // Render to a temp file, then move it into place so readers never see a
@@ -118,7 +118,7 @@ fn render_external(source: &Path, out_dir: &Path, kind: Kind) -> Result<PathBuf,
         std::process::id(),
         fnv1a(source.to_string_lossy().as_bytes())
     ));
-    std::fs::create_dir_all(&work).map_err(|e| format!("render dir: {}", e))?;
+    std::fs::create_dir_all(&work).map_err(|e| format!("Не удалось создать временную папку: {}", e))?;
     let raw_base = work.join("frame");
 
     let _slot = acquire();
@@ -137,7 +137,7 @@ fn render_external(source: &Path, out_dir: &Path, kind: Kind) -> Result<PathBuf,
                         cmd.arg("-");
                         Some(bytes)
                     }
-                    Err(_) => return Err(format!("could not read source PDF: {}", source.display())),
+                    Err(_) => return Err(format!("Не удалось прочитать PDF: {}", source.display())),
                 }
             } else {
                 cmd.arg(source);
@@ -151,16 +151,16 @@ fn render_external(source: &Path, out_dir: &Path, kind: Kind) -> Result<PathBuf,
     let raw = raw_base.with_extension("jpg");
     let result = if ok && raw.is_file() {
         image::open(&raw)
-            .map_err(|e| format!("could not read rendered frame: {}", e))
+            .map_err(|e| format!("Не удалось прочитать подготовленное изображение: {}", e))
             .and_then(|img| {
                 img.thumbnail(crate::indexer::extract::image::THUMB_SIZE, crate::indexer::extract::image::THUMB_SIZE)
                     .to_rgb8()
                     .save_with_format(&target, image::ImageFormat::Jpeg)
-                    .map_err(|e| format!("could not write preview: {}", e))
+                    .map_err(|e| format!("Не удалось сохранить предпросмотр: {}", e))
             })
             .map(|_| target.clone())
     } else {
-        Err("render failed or timed out".into())
+        Err("Не удалось подготовить предпросмотр или истекло время ожидания".into())
     };
     let _ = std::fs::remove_dir_all(&work);
     result

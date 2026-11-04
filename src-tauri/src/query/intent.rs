@@ -73,9 +73,9 @@ pub fn compile_with_aliases(raw: &str, aliases: &[(String, Vec<String>)]) -> Int
     if !has_explicit_filter {
         // --- Sort words -------------------------------------------------
         for (pat, order, label) in [
-            (r"(?i)\b(?:latest|newest|most recent)\b", "newest", "Newest"),
-            (r"(?i)\boldest\b", "oldest", "Oldest"),
-            (r"(?i)\b(?:biggest|largest)\b", "largest", "Largest"),
+            (r"(?i)\b(?:latest|newest|most recent)\b", "newest", "сначала новые"),
+            (r"(?i)\boldest\b", "oldest", "сначала старые"),
+            (r"(?i)\b(?:biggest|largest)\b", "largest", "сначала крупные"),
         ] {
             if sort.is_none()
                 && let Ok(re) = Regex::new(pat)
@@ -89,7 +89,7 @@ pub fn compile_with_aliases(raw: &str, aliases: &[(String, Vec<String>)]) -> Int
                 sort = Some(order.to_string());
                 chips.push(InterpretationChip {
                     kind: "sort".to_string(),
-                    label: format!("Sort: {}", label),
+                    label: format!("Сортировка: {}", label),
                     raw: format!("sort:{}", order),
                     source,
                 });
@@ -98,26 +98,26 @@ pub fn compile_with_aliases(raw: &str, aliases: &[(String, Vec<String>)]) -> Int
 
         // --- Time windows ----------------------------------------------
         for (pat, filter, label) in [
-            (r"(?i)\btoday\b", "modified:<1d", "Modified: today"),
+            (r"(?i)\btoday\b", "modified:<1d", "Изменён: сегодня"),
             (
                 r"(?i)\byesterday\b",
                 "modified:1d..2d",
-                "Modified: yesterday",
+                "Изменён: вчера",
             ),
             (
                 r"(?i)\b(?:this|last|past) week\b",
                 "modified:<7d",
-                "Modified: last 7 days",
+                "Изменён: за 7 дней",
             ),
             (
                 r"(?i)\b(?:this|last|past) month\b",
                 "modified:<30d",
-                "Modified: last 30 days",
+                "Изменён: за 30 дней",
             ),
             (
                 r"(?i)\b(?:this|last|past) year\b",
                 "modified:<365d",
-                "Modified: last year",
+                "Изменён: за год",
             ),
         ] {
             if let Ok(re) = Regex::new(pat) {
@@ -140,12 +140,12 @@ pub fn compile_with_aliases(raw: &str, aliases: &[(String, Vec<String>)]) -> Int
             (
                 r"(?i)\blast\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
                 weekday_days_back as fn(&str, u32) -> Option<u32>,
-                "Modified: last",
+                "weekday",
             ),
             (
                 r"(?i)\b(\d{1,3})\s+days?\s+ago\b",
                 days_ago_days as fn(&str, u32) -> Option<u32>,
-                "Modified: days ago",
+                "days_ago",
             ),
         ] {
             if let Ok(re) = Regex::new(pat)
@@ -156,7 +156,11 @@ pub fn compile_with_aliases(raw: &str, aliases: &[(String, Vec<String>)]) -> Int
                 let weekday_today = chrono_weekday_today();
                 if let Some(back) = days_fn(arg, weekday_today) {
                     let filter = format!("modified:{}d..{}d", back, back + 1);
-                    let shown = format!("{} {}", label, arg);
+                    let shown = if label == "weekday" {
+                        format!("Изменён: {}", weekday_ru(arg))
+                    } else {
+                        format!("Изменён: {} дн. назад", arg)
+                    };
                     work = work.replacen(&whole, " ", 1);
                     appends.push(filter.clone());
                     chips.push(InterpretationChip {
@@ -182,7 +186,7 @@ pub fn compile_with_aliases(raw: &str, aliases: &[(String, Vec<String>)]) -> Int
             appends.push(raw.clone());
             chips.push(InterpretationChip {
                 kind: "size".to_string(),
-                label: format!("Size: under {}{}", number, unit.to_uppercase()),
+                label: format!("Размер: меньше {} {}", number, size_unit_ru(&unit)),
                 raw,
                 source,
             });
@@ -199,7 +203,7 @@ pub fn compile_with_aliases(raw: &str, aliases: &[(String, Vec<String>)]) -> Int
             appends.push(raw.clone());
             chips.push(InterpretationChip {
                 kind: "size".to_string(),
-                label: format!("Size: over {}{}", number, unit.to_uppercase()),
+                label: format!("Размер: больше {} {}", number, size_unit_ru(&unit)),
                 raw,
                 source,
             });
@@ -208,9 +212,9 @@ pub fn compile_with_aliases(raw: &str, aliases: &[(String, Vec<String>)]) -> Int
             (
                 r"(?i)\b(?:huge|big|large)\b",
                 "size:>100mb",
-                "Size: over 100 MB",
+                "Размер: больше 100 МБ",
             ),
-            (r"(?i)\b(?:tiny|small)\b", "size:<1mb", "Size: under 1 MB"),
+            (r"(?i)\b(?:tiny|small)\b", "size:<1mb", "Размер: меньше 1 МБ"),
         ] {
             if let Ok(re) = Regex::new(pat) {
                 take(
@@ -238,7 +242,7 @@ pub fn compile_with_aliases(raw: &str, aliases: &[(String, Vec<String>)]) -> Int
                 appends.push("type:image".to_string());
                 chips.push(InterpretationChip {
                     kind: "visual".to_string(),
-                    label: "Visual: images".to_string(),
+                    label: "Поиск по виду: изображения".to_string(),
                     raw: "type:image".to_string(),
                     source,
                 });
@@ -251,46 +255,46 @@ pub fn compile_with_aliases(raw: &str, aliases: &[(String, Vec<String>)]) -> Int
             (
                 r"(?i)\b(?:screenshots?|images?|photos?|pictures?)\b",
                 "type:image",
-                "Type: images",
+                "Тип: изображения",
             ),
-            (r"(?i)\bpdfs?\b", "ext:pdf", "Type: PDF"),
+            (r"(?i)\bpdfs?\b", "ext:pdf", "Тип: PDF"),
             (
                 r"(?i)\b(?:videos?|movies?|clips?)\b",
                 "type:media",
-                "Type: media",
+                "Тип: видео и аудио",
             ),
             (
                 r"(?i)\b(?:audio|music|songs?)\b",
                 "type:media",
-                "Type: media",
+                "Тип: видео и аудио",
             ),
-            (r"(?i)\b(?:code|source)\b", "type:code", "Type: code"),
+            (r"(?i)\b(?:code|source)\b", "type:code", "Тип: исходный код"),
             (
                 r"(?i)\b(?:documents?|docs?)\b",
                 "type:doc",
-                "Type: documents",
+                "Тип: документы",
             ),
             (
                 r"(?i)\b(?:spreadsheets?|excel)\b",
                 "type:doc",
-                "Type: documents",
+                "Тип: документы",
             ),
             (
                 r"(?i)\b(?:presentations?|slides?)\b",
                 "type:doc",
-                "Type: documents",
+                "Тип: документы",
             ),
             (
                 r"(?i)\b(?:folders?|directories|directory)\b",
                 "type:dir",
-                "Type: folders",
+                "Тип: папки",
             ),
             (
                 r"(?i)\b(?:archives?|zips?)\b",
                 "type:archive",
-                "Type: archives",
+                "Тип: архивы",
             ),
-            (r"(?i)\blogs?\b", "ext:log", "Type: logs"),
+            (r"(?i)\blogs?\b", "ext:log", "Тип: журналы"),
         ] {
             if let Ok(re) = Regex::new(pat) {
                 take(
@@ -338,7 +342,7 @@ pub fn compile_with_aliases(raw: &str, aliases: &[(String, Vec<String>)]) -> Int
                 appends.push(raw.clone());
                 chips.push(InterpretationChip {
                     kind: "alias".to_string(),
-                    label: format!("Alias: {}", term),
+                    label: format!("Синоним: {}", term),
                     raw,
                     source: term.to_string(),
                 });
@@ -351,7 +355,7 @@ pub fn compile_with_aliases(raw: &str, aliases: &[(String, Vec<String>)]) -> Int
                 appends.push(raw.clone());
                 chips.push(InterpretationChip {
                     kind: "place".to_string(),
-                    label: format!("In: {}", place),
+                    label: format!("В папке: {}", place),
                     raw,
                     source,
                 });
@@ -438,6 +442,29 @@ mod tests {
         let intent = compile("docker error");
         assert!(intent.chips.is_empty());
         assert_eq!(intent.query, "docker error");
+    }
+}
+
+/// Russian unit for a size chip label (`mb` -> `МБ`).
+fn size_unit_ru(unit: &str) -> &'static str {
+    match unit.to_ascii_lowercase().as_str() {
+        "kb" => "КБ",
+        "gb" => "ГБ",
+        _ => "МБ",
+    }
+}
+
+/// "last <weekday>" in Russian, with the adjective agreeing in gender.
+fn weekday_ru(name: &str) -> &'static str {
+    match name.to_ascii_lowercase().as_str() {
+        "monday" => "в прошлый понедельник",
+        "tuesday" => "в прошлый вторник",
+        "wednesday" => "в прошлую среду",
+        "thursday" => "в прошлый четверг",
+        "friday" => "в прошлую пятницу",
+        "saturday" => "в прошлую субботу",
+        "sunday" => "в прошлое воскресенье",
+        _ => "в прошлый раз",
     }
 }
 

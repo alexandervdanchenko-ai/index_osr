@@ -48,14 +48,14 @@ pub fn pack_present() -> bool {
 /// Why Indra cannot run, in words a user can act on, or `None` when it can.
 pub fn problem() -> Option<String> {
     if !crate::ocr::accurate_compiled() {
-        return Some("Indra OCR is not part of this build".into());
+        return Some("Indra OCR не входит в эту сборку программы".into());
     }
     if !pack_present() {
-        return Some("Indra OCR models are not downloaded yet".into());
+        return Some("Модели Indra OCR ещё не загружены".into());
     }
     if !crate::ocr::runtime_loadable() {
         return crate::ocr::accurate_problem()
-            .or_else(|| Some("ONNX Runtime could not be loaded".into()));
+            .or_else(|| Some("Не удалось загрузить ONNX Runtime".into()));
     }
     self_test().err()
 }
@@ -115,28 +115,28 @@ pub fn self_test() -> Result<(), String> {
         return result.clone();
     }
     if !crate::ocr::accurate_compiled() {
-        return Err("Indra OCR is not part of this build".into());
+        return Err("Indra OCR не входит в эту сборку программы".into());
     }
     if !pack_present() {
         // Not cached: the pack may be downloaded later in this process.
-        return Err("Indra OCR models are not downloaded yet".into());
+        return Err("Модели Indra OCR ещё не загружены".into());
     }
     if !crate::ocr::runtime_loadable() {
-        return Err("ONNX Runtime could not be loaded".into());
+        return Err("Не удалось загрузить ONNX Runtime".into());
     }
     let result = image::load_from_memory(crate::ocr::SELF_TEST_IMAGE)
-        .map_err(|e| format!("self-test image is unreadable: {e}"))
+        .map_err(|e| format!("Тестовое изображение для самопроверки не читается: {e}"))
         .and_then(|image| match extract_decoded(&image) {
             OcrOutcome::Text(text) => {
                 let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
                 if normalized.to_lowercase().contains(crate::ocr::SELF_TEST_EXPECTED) {
                     Ok(())
                 } else {
-                    Err(format!("Indra misread its self-test: {normalized:?}"))
+                    Err(format!("Indra неверно распознал тестовое изображение: {normalized:?}"))
                 }
             }
-            OcrOutcome::NoText => Err("Indra read nothing in its self-test".into()),
-            OcrOutcome::Unavailable => Err("Indra models failed to load".into()),
+            OcrOutcome::NoText => Err("Indra не распознал текст на тестовом изображении".into()),
+            OcrOutcome::Unavailable => Err("Не удалось загрузить модели Indra".into()),
         });
     if let Err(reason) = &result {
         eprintln!("[Kensaku OCR] {reason}");
@@ -199,7 +199,7 @@ mod pool {
                 .unwrap_or_else(|poisoned| poisoned.into_inner()),
         };
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| engine.read(page)));
-        Some(result.unwrap_or_else(|_| Err("the engine panicked".into())))
+        Some(result.unwrap_or_else(|_| Err("движок аварийно завершился".into())))
     }
 }
 

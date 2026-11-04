@@ -378,7 +378,7 @@ impl IndexerManager {
                 is_indexing: false,
                 files_indexed: 0,
                 content_indexed: 0,
-                current_status: "Idle".to_string(),
+                current_status: "Ожидание".to_string(),
                 is_embedding: false,
                 units_indexed: units_count,
                 semantic_ready: units_count > 0,
@@ -437,7 +437,7 @@ impl IndexerManager {
                 is_indexing: false,
                 files_indexed: 0,
                 content_indexed: 0,
-                current_status: "Daemon-backed (read-only client)".to_string(),
+                current_status: "Работа через фоновую службу (только чтение)".to_string(),
                 is_embedding: false,
                 units_indexed: units_count,
                 semantic_ready: units_count > 0,
@@ -483,7 +483,7 @@ impl IndexerManager {
                 if st.paused {
                     st.paused = false;
                     st.phase = "extracting".to_string();
-                    st.current_status = "Resuming indexing…".to_string();
+                    st.current_status = "Возобновление индексации…".to_string();
                     Self::emit_status(app_handle, &st);
                 }
                 return;
@@ -493,7 +493,7 @@ impl IndexerManager {
             if !st.paused {
                 st.paused = true;
                 st.phase = "paused".to_string();
-                st.current_status = "Indexing paused".to_string();
+                st.current_status = "Индексация приостановлена".to_string();
                 Self::emit_status(app_handle, &st);
             }
             drop(st);
@@ -611,7 +611,7 @@ impl IndexerManager {
                 st.is_indexing = true;
                 st.paused = false;
                 st.phase = "walking".to_string();
-                st.current_status = "Scanning files...".to_string();
+                st.current_status = "Поиск файлов...".to_string();
                 Self::emit_status(&app_handle, &st);
             }
 
@@ -649,7 +649,7 @@ impl IndexerManager {
                 let mut st = status.write();
                 st.total_files = total_entries;
                 st.phase = "walking".to_string();
-                st.current_status = format!("Indexing metadata for {} entries...", total_entries);
+                st.current_status = format!("Индексация сведений о файлах: {}...", total_entries);
                 Self::emit_status(&app_handle, &st);
             }
 
@@ -717,7 +717,7 @@ impl IndexerManager {
                     let mut st = status.write();
                     st.files_indexed = files_count;
                     st.content_indexed = content_count;
-                    st.current_status = format!("Indexed {} items", files_count);
+                    st.current_status = format!("Проиндексировано: {}", files_count);
                     Self::emit_status(&app_handle, &st);
                 }
             }
@@ -746,7 +746,7 @@ impl IndexerManager {
                 st.extract_total = extract_total;
                 st.extract_done = 0;
                 st.current_status =
-                    format!("Extracting text from {} potential files...", extract_total);
+                    format!("Извлечение текста, файлов к обработке: {}...", extract_total);
                 Self::emit_status(&app_handle, &st);
             }
 
@@ -864,7 +864,7 @@ impl IndexerManager {
                             let mut st = producer_status.write();
                             st.extract_done = done;
                             st.current_status =
-                                format!("Extracting text… {}/{} files", done, extract_total);
+                                format!("Извлечение текста… {} из {} файлов", done, extract_total);
                             Self::emit_status(&producer_app, &st);
                         }
 
@@ -1013,7 +1013,7 @@ impl IndexerManager {
                     st.semantic_ready = st.units_indexed > 0;
                 }
                 st.phase = "committing".to_string();
-                st.current_status = "Updating search index...".to_string();
+                st.current_status = "Обновление поискового индекса...".to_string();
                 Self::emit_status(&app_handle, &st);
             }
 
@@ -1137,7 +1137,7 @@ impl IndexerManager {
                 st.phase = "idle".to_string();
                 st.files_indexed = files_count;
                 st.content_indexed = content_count;
-                st.current_status = format!("Ready ({} files indexed)", files_count);
+                st.current_status = format!("Готово (проиндексировано файлов: {})", files_count);
                 Self::emit_status(&app_handle, &st);
             }
 
@@ -1215,7 +1215,7 @@ impl IndexerManager {
             .is_err()
         {
             return Err(
-                "Indexing is already running — wait for the scan to finish, then rebuild."
+                "Индексация уже идёт. Дождитесь её окончания, затем перестройте индекс."
                     .to_string(),
             );
         }
@@ -1228,7 +1228,7 @@ impl IndexerManager {
         st.total_files = 0;
         st.extract_done = 0;
         st.extract_total = 0;
-        st.current_status = "Rebuilding index…".to_string();
+        st.current_status = "Перестройка индекса…".to_string();
         Self::emit_status(&self.app_handle, &st);
         drop(st);
 
@@ -1258,7 +1258,7 @@ impl IndexerManager {
                     st.is_indexing = false;
                     st.paused = false;
                     st.phase = "idle".to_string();
-                    st.current_status = "Rebuild failed".to_string();
+                    st.current_status = "Не удалось перестроить индекс".to_string();
                     IndexerManager::emit_status(&self.app_handle, &st);
                 }
                 self.gate.store(false, Ordering::SeqCst);
@@ -1284,7 +1284,7 @@ impl IndexerManager {
 
         {
             let mut st = self.status.write();
-            st.current_status = "Rebuilding index — clearing old data…".to_string();
+            st.current_status = "Перестройка индекса: удаление старых данных…".to_string();
             Self::emit_status(&self.app_handle, &st);
         }
 
@@ -1319,7 +1319,7 @@ impl IndexerManager {
                 let mut st = self.status.write();
                 st.is_indexing = false;
                 st.phase = "error".to_string();
-                st.current_status = format!("Rebuild failed: {}", e);
+                st.current_status = format!("Не удалось перестроить индекс: {}", e);
                 Self::emit_status(&self.app_handle, &st);
                 // The detailed status above is final for this run; the guard
                 // only needs to hand the crawl gate back.
@@ -1450,7 +1450,7 @@ impl IndexerManager {
             Some(v) => v,
             None => {
                 let encoder = crate::embed::visual::active_encoder().ok_or_else(|| {
-                    "Visual embeddings are not available in this build; install the visual model pack"
+                    "Поиск похожих изображений недоступен в этой сборке: установите пакет визуальной модели"
                         .to_string()
                 })?;
                 let thumbs_dir = KensakuConfig::config_dir().join("thumbs");
@@ -1461,11 +1461,11 @@ impl IndexerManager {
                     v
                 } else if path.is_file() {
                     let img = image::open(path)
-                        .map_err(|e| format!("Failed to open image {}: {}", path.display(), e))?;
+                        .map_err(|e| format!("Не удалось открыть изображение {}: {}", path.display(), e))?;
                     encoder.embed_image(&img)
                 } else {
                     return Err(format!(
-                        "Image not found or not readable: {}",
+                        "Изображение не найдено или не читается: {}",
                         path.display()
                     ));
                 }

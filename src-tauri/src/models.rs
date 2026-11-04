@@ -317,12 +317,12 @@ fn bundled_models_dir() -> Option<PathBuf> {
 /// Creates the models directory (0700 on unix) if needed.
 fn ensure_dir(dir: &Path) -> Result<(), String> {
     std::fs::create_dir_all(dir)
-        .map_err(|e| format!("Failed to create models directory {}: {}", dir.display(), e))?;
+        .map_err(|e| format!("Не удалось создать папку моделей {}: {}", dir.display(), e))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
-            .map_err(|e| format!("Failed to set permissions on {}: {}", dir.display(), e))?;
+            .map_err(|e| format!("Не удалось установить права доступа к {}: {}", dir.display(), e))?;
     }
     Ok(())
 }
@@ -418,7 +418,7 @@ fn status_for(dir: &Path, artifacts_list: &[Artifact]) -> ModelsStatus {
 /// Returns immediately. Calling this while a download is already running is a
 /// no-op.
 pub fn download_all() {
-    start_download(models_dir(), &ARTIFACTS, "kensaku-model-download", "model");
+    start_download(models_dir(), &ARTIFACTS, "kensaku-model-download", "модели");
 }
 
 /// Called once an OCR pack (PP-OCR or Indra) has finished downloading and
@@ -437,7 +437,7 @@ pub fn download_ocr_pack() {
         crate::ocr::pack_dir(),
         &OCR_ARTIFACTS,
         "kensaku-ocr-download",
-        "OCR pack",
+        "пакета OCR",
     );
 }
 
@@ -447,7 +447,7 @@ pub fn download_indra_pack() {
         crate::ocr_indra::pack_dir(),
         &INDRA_ARTIFACTS,
         "kensaku-indra-download",
-        "Indra OCR pack",
+        "пакета Indra OCR",
     );
 }
 
@@ -457,7 +457,7 @@ pub fn download_smart_pack() {
         smart_dir(),
         &SMART_ARTIFACTS,
         "kensaku-smart-download",
-        "smart embedding pack",
+        "пакета умной смысловой модели",
     );
 }
 
@@ -467,7 +467,7 @@ pub fn download_visual_pack() {
         visual_dir(),
         &VISUAL_ARTIFACTS,
         "kensaku-visual-download",
-        "visual embedding pack",
+        "пакета визуальной модели",
     );
 }
 
@@ -496,7 +496,7 @@ fn start_download(
 
     if let Err(e) = spawned {
         set_error(Some(format!(
-            "Failed to start {} download thread: {}",
+            "Не удалось запустить загрузку {}: {}",
             label, e
         )));
         DOWNLOADING.store(false, Ordering::SeqCst);
@@ -539,7 +539,7 @@ fn download_missing_for(dir: &Path, artifacts: &[Artifact], label: &str) -> Resu
         && free < missing_bytes.saturating_add(64 * 1024 * 1024)
     {
         return Err(format!(
-            "Not enough disk space for {} files: need {} MB, have {} MB",
+            "Недостаточно места на диске для файлов {}: нужно {} МБ, свободно {} МБ",
             label,
             missing_bytes / (1024 * 1024),
             free / (1024 * 1024)
@@ -631,7 +631,7 @@ fn download_one(
             Ok(()) => {
                 if sha256_matches(&part_path, artifact.sha256)? {
                     std::fs::rename(&part_path, &final_path).map_err(|e| {
-                        format!("Failed to finalize {}: {}", final_path.display(), e)
+                        format!("Не удалось завершить сохранение {}: {}", final_path.display(), e)
                     })?;
                     set_progress(Some(ModelProgress {
                         file: artifact.name.to_string(),
@@ -643,7 +643,7 @@ fn download_one(
                 }
                 let _ = std::fs::remove_file(&part_path);
                 downloaded = 0;
-                last_error = Some(format!("Checksum mismatch for {}", artifact.name));
+                last_error = Some(format!("Контрольная сумма не совпадает: {}", artifact.name));
             }
             Err(error) => {
                 last_error = Some(error);
@@ -651,7 +651,7 @@ fn download_one(
         }
     }
 
-    Err(last_error.unwrap_or_else(|| format!("Download failed for {}", artifact.name)))
+    Err(last_error.unwrap_or_else(|| format!("Не удалось загрузить {}", artifact.name)))
 }
 
 fn download_url(
@@ -668,7 +668,7 @@ fn download_url(
     }
     let response = request
         .call()
-        .map_err(|e| format!("Download failed for {}: {}", artifact.name, e))?;
+        .map_err(|e| format!("Не удалось загрузить {}: {}", artifact.name, e))?;
 
     let status = response.status();
     let (append, total) = match status {
@@ -697,7 +697,7 @@ fn download_url(
         }
         other => {
             return Err(format!(
-                "Unexpected HTTP status {} for {}",
+                "Неожиданный ответ сервера HTTP {} для {}",
                 other, artifact.name
             ));
         }
@@ -708,22 +708,22 @@ fn download_url(
         std::fs::OpenOptions::new()
             .append(true)
             .open(part_path)
-            .map_err(|e| format!("Failed to reopen {}: {}", part_path.display(), e))?
+            .map_err(|e| format!("Не удалось повторно открыть {}: {}", part_path.display(), e))?
     } else {
         std::fs::File::create(part_path)
-            .map_err(|e| format!("Failed to create {}: {}", part_path.display(), e))?
+            .map_err(|e| format!("Не удалось создать {}: {}", part_path.display(), e))?
     };
 
     let mut buffer = vec![0u8; CHUNK_BYTES];
     loop {
         let read = reader
             .read(&mut buffer)
-            .map_err(|e| format!("Download interrupted for {}: {}", artifact.name, e))?;
+            .map_err(|e| format!("Загрузка {} прервана: {}", artifact.name, e))?;
         if read == 0 {
             break;
         }
         file.write_all(&buffer[..read])
-            .map_err(|e| format!("Failed to write {}: {}", part_path.display(), e))?;
+            .map_err(|e| format!("Не удалось записать {}: {}", part_path.display(), e))?;
         *downloaded = downloaded.saturating_add(read as u64);
         set_progress(Some(ModelProgress {
             file: artifact.name.to_string(),
@@ -734,12 +734,12 @@ fn download_url(
     }
     if total > 0 && *downloaded < total {
         return Err(format!(
-            "Download interrupted for {}: expected {} bytes, got {}",
+            "Загрузка {} прервана: ожидалось {} байт, получено {}",
             artifact.name, total, downloaded
         ));
     }
     file.flush()
-        .map_err(|e| format!("Failed to flush {}: {}", part_path.display(), e))?;
+        .map_err(|e| format!("Не удалось записать на диск {}: {}", part_path.display(), e))?;
     Ok(())
 }
 
@@ -758,7 +758,7 @@ fn sha256_matches(path: &Path, expected: Option<&str>) -> Result<bool, String> {
 pub(crate) fn sha256_file(path: &Path) -> Result<String, String> {
     use sha2::{Digest, Sha256};
     let bytes =
-        std::fs::read(path).map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+        std::fs::read(path).map_err(|e| format!("Не удалось прочитать {}: {}", path.display(), e))?;
     let digest = Sha256::digest(bytes);
     Ok(format!("{:x}", digest))
 }
@@ -766,13 +766,13 @@ pub(crate) fn sha256_file(path: &Path) -> Result<String, String> {
 /// Removes every model artifact and resets progress/error state.
 pub fn delete_all() -> Result<(), String> {
     if DOWNLOADING.load(Ordering::SeqCst) {
-        return Err("A model download is in progress. Try again once it finishes.".to_string());
+        return Err("Идёт загрузка модели. Повторите попытку после её завершения.".to_string());
     }
 
     let dir = models_dir();
     if dir.exists() {
         std::fs::remove_dir_all(&dir)
-            .map_err(|e| format!("Failed to delete {}: {}", dir.display(), e))?;
+            .map_err(|e| format!("Не удалось удалить {}: {}", dir.display(), e))?;
     }
     ensure_dir(&dir)?;
 

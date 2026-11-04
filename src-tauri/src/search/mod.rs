@@ -1098,7 +1098,7 @@ impl SearchDispatcher {
                 results.truncate(EXHAUSTIVE_LIMIT);
             }
             if results.is_empty() && !parsed.active_filters_dto.is_empty() {
-                hints.push("No results match the active filters; try removing one.".to_string());
+                hints.push("С активными фильтрами ничего не найдено. Попробуйте убрать один из них.".to_string());
             }
             let elapsed = start_time
                 .elapsed()
@@ -1558,7 +1558,7 @@ impl SearchDispatcher {
         if results.is_empty() && !parsed.active_filters_dto.is_empty() {
             parsed
                 .hints
-                .push("No results match the active filters; try removing one.".to_string());
+                .push("С активными фильтрами ничего не найдено. Попробуйте убрать один из них.".to_string());
         }
 
         let elapsed = start_time
@@ -1757,7 +1757,7 @@ fn exhaustive_results(
 
     if results.len() >= cap {
         hints.push(format!(
-            "Exhaustive mode capped at {} results; refine the query to narrow it.",
+            "Полный поиск ограничен {} результатами. Уточните запрос, чтобы сузить выдачу.",
             cap
         ));
     }
@@ -2271,7 +2271,7 @@ mod tests {
             results.iter().map(|r| r.path.clone()).collect::<Vec<_>>(),
             sorted
         );
-        assert!(!hints.iter().any(|h| h.contains("capped")));
+        assert!(!hints.iter().any(|h| h.contains("ограничен")));
     }
 
     #[test]

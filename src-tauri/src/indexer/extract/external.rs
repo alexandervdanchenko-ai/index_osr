@@ -99,11 +99,11 @@ impl ExternalExtractor {
     /// show the command and catch broken configurations before they run.
     pub fn validate(&self) -> Result<(), String> {
         if self.name.trim().is_empty() {
-            return Err("external extractor has an empty name".to_string());
+            return Err("у внешнего обработчика не указано имя".to_string());
         }
         if self.extensions.is_empty() && self.mime.is_empty() {
             return Err(format!(
-                "external extractor '{}' needs an extension or MIME selector",
+                "для внешнего обработчика «{}» нужно указать расширение или тип MIME ",
                 self.name
             ));
         }
@@ -113,19 +113,19 @@ impl ExternalExtractor {
             .any(|selector| selector.trim().trim_matches('.').is_empty())
         {
             return Err(format!(
-                "external extractor '{}' has an empty extension selector",
+                "у внешнего обработчика «{}» указано пустое расширение",
                 self.name
             ));
         }
         if self.mime.iter().any(|selector| selector.trim().is_empty()) {
             return Err(format!(
-                "external extractor '{}' has an empty MIME selector",
+                "у внешнего обработчика «{}» указан пустой тип MIME",
                 self.name
             ));
         }
         if self.args.len() > 128 {
             return Err(format!(
-                "external extractor '{}' has too many arguments",
+                "у внешнего обработчика «{}» слишком много аргументов",
                 self.name
             ));
         }
@@ -167,16 +167,16 @@ impl ExternalExtractor {
     /// contains `{path}`. No shell is involved in either case.
     pub fn run(&self, path: &Path, max_bytes: usize) -> Result<DocumentExtract, String> {
         if !self.enabled {
-            return Err(format!("external extractor '{}' is disabled", self.name));
+            return Err(format!("внешний обработчик «{}» выключен", self.name));
         }
         self.validate()
-            .map_err(|error| format!("external extractor '{}': {}", self.name, error))?;
+            .map_err(|error| format!("внешний обработчик «{}»: {}", self.name, error))?;
 
         let command_path = validate_command(&self.command)?;
         let args = self.expanded_args(path)?;
         if args.len() > 128 {
             return Err(format!(
-                "external extractor '{}' has too many arguments",
+                "у внешнего обработчика «{}» слишком много аргументов",
                 self.name
             ));
         }
@@ -226,7 +226,7 @@ impl ExternalExtractor {
 
         let mut child = command.spawn().map_err(|error| {
             format!(
-                "external extractor '{}' could not start {}: {}",
+                "не удалось запустить внешний обработчик «{}» ({}): {}",
                 self.name,
                 command_path.display(),
                 error
@@ -238,7 +238,7 @@ impl ExternalExtractor {
             None => {
                 kill_process_group(&mut child);
                 let _ = child.wait();
-                return Err(format!("external extractor '{}' has no stdout", self.name));
+                return Err(format!("внешний обработчик «{}» не выдал поток вывода", self.name));
             }
         };
         let (result_tx, result_rx) = std::sync::mpsc::channel();
@@ -263,7 +263,7 @@ impl ExternalExtractor {
                     let _ = child.wait();
                     let _ = result_rx.recv_timeout(Duration::from_millis(250));
                     return Err(format!(
-                        "external extractor '{}' failed while waiting: {}",
+                        "ошибка ожидания внешнего обработчика «{}»: {}",
                         self.name, error
                     ));
                 }
@@ -290,7 +290,7 @@ impl ExternalExtractor {
                     kill_process_group(&mut child);
                 }
                 return Err(format!(
-                    "external extractor '{}' timed out after {} ms waiting for output",
+                    "внешний обработчик «{}»: истекло время ожидания вывода ({} мс)",
                     self.name, timeout_ms
                 ));
             }
@@ -299,7 +299,7 @@ impl ExternalExtractor {
                     kill_process_group(&mut child);
                 }
                 return Err(format!(
-                    "external extractor '{}' reader stopped unexpectedly",
+                    "чтение вывода внешнего обработчика «{}» неожиданно прервалось",
                     self.name
                 ));
             }
@@ -307,40 +307,40 @@ impl ExternalExtractor {
 
         if timed_out {
             return Err(format!(
-                "external extractor '{}' timed out after {} ms",
+                "внешний обработчик «{}»: истекло время ожидания ({} мс)",
                 self.name, timeout_ms
             ));
         }
         let Some(status) = status else {
             return Err(format!(
-                "external extractor '{}' timed out after {} ms",
+                "внешний обработчик «{}»: истекло время ожидания ({} мс)",
                 self.name, timeout_ms
             ));
         };
         let (output, overflow) = reader_result;
         if overflow {
             return Err(format!(
-                "external extractor '{}' exceeded the {} byte output cap",
+                "внешний обработчик «{}» превысил предельный объём вывода ({} байт)",
                 self.name, output_cap
             ));
         }
         if !status.success() {
             return Err(match status.code() {
-                Some(code) => format!("external extractor '{}' exited with {}", self.name, code),
-                None => format!("external extractor '{}' was terminated", self.name),
+                Some(code) => format!("внешний обработчик «{}» завершился с кодом {}", self.name, code),
+                None => format!("внешний обработчик «{}» был принудительно остановлен", self.name),
             });
         }
 
         let text = String::from_utf8(output).map_err(|_| {
             format!(
-                "external extractor '{}' returned non-UTF-8 output",
+                "внешний обработчик «{}» вернул текст не в кодировке UTF-8",
                 self.name
             )
         })?;
         let text = truncate_utf8(text, max_bytes);
         if text.trim().is_empty() {
             return Err(format!(
-                "external extractor '{}' returned no text",
+                "внешний обработчик «{}» не вернул текст",
                 self.name
             ));
         }
@@ -363,7 +363,7 @@ impl ExternalExtractor {
             if arg.contains("{path}") {
                 let path_str = path.to_str().ok_or_else(|| {
                     format!(
-                        "external extractor '{}' cannot pass a non-UTF-8 path through '{{path}}'",
+                        "внешнему обработчику «{}» нельзя передать путь не в кодировке UTF-8 через «{{path}}»",
                         self.name
                     )
                 })?;
@@ -384,20 +384,20 @@ impl ExternalExtractor {
 fn validate_command(command: &str) -> Result<PathBuf, String> {
     let command = command.trim();
     if command.is_empty() {
-        return Err("external extractor command is empty".to_string());
+        return Err("не указана команда внешнего обработчика".to_string());
     }
     let path = PathBuf::from(command);
     if !path.is_absolute() {
         return Err(format!(
-            "external extractor command must be an absolute path, got '{}'",
+            "команда внешнего обработчика должна быть указана полным путём, указано «{}»",
             command
         ));
     }
     let metadata = fs::metadata(&path)
-        .map_err(|error| format!("external extractor command '{}': {}", path.display(), error))?;
+        .map_err(|error| format!("команда внешнего обработчика «{}»: {}", path.display(), error))?;
     if !metadata.is_file() {
         return Err(format!(
-            "external extractor command '{}' is not a file",
+            "команда внешнего обработчика «{}» не является файлом",
             path.display()
         ));
     }
@@ -406,7 +406,7 @@ fn validate_command(command: &str) -> Result<PathBuf, String> {
         use std::os::unix::fs::PermissionsExt;
         if metadata.permissions().mode() & 0o111 == 0 {
             return Err(format!(
-                "external extractor command '{}' is not executable",
+                "команда внешнего обработчика «{}» не является исполняемым файлом",
                 path.display()
             ));
         }
@@ -422,7 +422,7 @@ fn validate_command(command: &str) -> Result<PathBuf, String> {
             .to_ascii_lowercase();
         if extension == "bat" || extension == "cmd" {
             return Err(format!(
-                "external extractor command '{}' is a batch script; configure an .exe instead",
+                "команда внешнего обработчика «{}» является пакетным файлом, укажите вместо него файл .exe",
                 path.display()
             ));
         }
@@ -583,7 +583,7 @@ mod tests {
         extractor.enabled = false;
         assert!(!extractor.matches(Some("k10ext"), None));
         let error = extractor.run(&path, 1_000_000).unwrap_err();
-        assert!(error.contains("disabled"), "got: {error}");
+        assert!(error.contains("выключен"), "got: {error}");
     }
 
     #[test]
@@ -617,11 +617,11 @@ mod tests {
         let mut extractor = extractor(Path::new("/bin/cat"), Vec::new());
         extractor.extensions.clear();
         let error = extractor.validate().unwrap_err();
-        assert!(error.contains("selector"), "got: {error}");
+        assert!(error.contains("расширение или тип MIME"), "got: {error}");
 
         extractor.extensions.push("  ".to_string());
         let error = extractor.validate().unwrap_err();
-        assert!(error.contains("empty extension"), "got: {error}");
+        assert!(error.contains("пустое расширение"), "got: {error}");
 
         extractor.extensions = vec!["k10ext".to_string()];
         extractor.enabled = false;
@@ -646,7 +646,7 @@ mod tests {
         let error = extractor
             .run(Path::new("/tmp/file.k10ext"), 1_000)
             .unwrap_err();
-        assert!(error.contains("absolute"), "got: {error}");
+        assert!(error.contains("полным путём"), "got: {error}");
     }
 
     #[test]
@@ -689,7 +689,7 @@ mod tests {
 
         let started = Instant::now();
         let error = extractor.run(&path, 1_000_000).unwrap_err();
-        assert!(error.contains("timed out"), "got: {error}");
+        assert!(error.contains("истекло время ожидания"), "got: {error}");
         assert!(started.elapsed() < Duration::from_secs(2));
 
         let pid = fs::read_to_string(&pid_file)
@@ -716,7 +716,7 @@ mod tests {
 
         let started = Instant::now();
         let error = extractor.run(&path, 1_000_000).unwrap_err();
-        assert!(error.contains("timed out"), "got: {error}");
+        assert!(error.contains("истекло время ожидания"), "got: {error}");
         assert!(
             started.elapsed() < Duration::from_secs(2),
             "a helper holding stdout must not pin the extraction slot"
@@ -747,7 +747,7 @@ mod tests {
         let mut extractor = extractor(Path::new("/bin/sh"), vec!["-c", command, "kensaku-plugin"]);
         extractor.max_output_bytes = 1_024;
         let error = extractor.run(&path, 1_000_000).unwrap_err();
-        assert!(error.contains("output cap"), "got: {error}");
+        assert!(error.contains("предельный объём вывода"), "got: {error}");
     }
 
     #[test]
@@ -756,7 +756,7 @@ mod tests {
         let path = temp.file("input.k10ext", "");
         let extractor = extractor(Path::new("/bin/sh"), vec!["-c", "exit 7", "kensaku-plugin"]);
         let error = extractor.run(&path, 1_000_000).unwrap_err();
-        assert!(error.contains("exited with 7"), "got: {error}");
+        assert!(error.contains("с кодом 7"), "got: {error}");
     }
 
     #[test]

@@ -112,7 +112,7 @@ impl ModelRegistry {
                 } else {
                     let mut reg = Self::new_static();
                     reg.fallback_reason = Some(format!(
-                        "Model artifacts not found in {}; using hashing fallback",
+                        "файлы модели не найдены в {}, используется упрощённый вариант (хеширование)",
                         dir.display()
                     ));
                     reg
@@ -137,7 +137,7 @@ impl ModelRegistry {
                         }
                     } else {
                         let fallback_reason = format!(
-                            "Smart ONNX artifacts missing or invalid in {}; falling back to static provider",
+                            "файлы умной модели (Smart ONNX) отсутствуют или повреждены в {}, используется статическая модель",
                             smart_dir.display()
                         );
                         let mut reg =
@@ -149,7 +149,7 @@ impl ModelRegistry {
                 #[cfg(not(feature = "smart-embeddings"))]
                 {
                     let fallback_reason =
-                        "Smart ONNX pack is not compiled in this build; falling back to static provider".to_string();
+                        "умная модель (Smart ONNX) не входит в эту сборку, используется статическая модель".to_string();
                     let mut reg =
                         Self::load_with_f32(dir, config.semantic_f32_table).unwrap_or_default();
                     reg.fallback_reason = Some(fallback_reason);
@@ -158,7 +158,7 @@ impl ModelRegistry {
             }
             other => {
                 let fallback_reason = format!(
-                    "Unknown semantic_model '{}'; falling back to static provider",
+                    "неизвестное значение semantic_model «{}», используется статическая модель",
                     other
                 );
                 if let Some(mut registry) = Self::load_with_f32(dir, config.semantic_f32_table) {
@@ -167,7 +167,7 @@ impl ModelRegistry {
                 } else {
                     let mut reg = Self::new_static();
                     reg.fallback_reason = Some(format!(
-                        "{}; artifacts missing in {}, using hashing fallback",
+                        "{}; файлы модели отсутствуют в {}, используется упрощённый вариант (хеширование)",
                         fallback_reason,
                         dir.display()
                     ));

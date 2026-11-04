@@ -808,7 +808,7 @@ impl ContentIndex {
             }
             if pattern.chars().count() > MAX_REGEX_PATTERN_LEN {
                 hints.push(format!(
-                    "Regex pattern too long (max {} characters); ignored",
+                    "Регулярное выражение слишком длинное (не более {} символов), не учтено",
                     MAX_REGEX_PATTERN_LEN
                 ));
                 continue;
@@ -820,7 +820,7 @@ impl ContentIndex {
                 match RegexQuery::from_pattern(pattern, field) {
                     Ok(query) => field_queries.push(query),
                     Err(err) => {
-                        hints.push(format!("Invalid regex '{}': {}", pattern, err));
+                        hints.push(format!("Ошибка в регулярном выражении «{}»: {}", pattern, err));
                         failed = true;
                         break;
                     }
@@ -1934,12 +1934,12 @@ mod tests {
         let invalid = index.search_groups_with_regex(&[], &["[unterminated"], 10, None);
         assert!(invalid.matches.is_empty());
         assert_eq!(invalid.hints.len(), 1);
-        assert!(invalid.hints[0].contains("Invalid regex"));
+        assert!(invalid.hints[0].contains("Ошибка в регулярном выражении"));
 
         let too_long = "a".repeat(MAX_REGEX_PATTERN_LEN + 1);
         let capped = index.search_groups_with_regex(&[], &[too_long.as_str()], 10, None);
         assert!(capped.matches.is_empty());
-        assert!(capped.hints.iter().any(|h| h.contains("too long")));
+        assert!(capped.hints.iter().any(|h| h.contains("слишком длинное")));
     }
 
     #[test]

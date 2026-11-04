@@ -283,6 +283,18 @@ pub fn tesseract_available() -> bool {
         .is_ok_and(|output| output.status.success())
 }
 
+/// Why Tesseract could not be started, in Russian for the status shown in
+/// the window. The OS error is kept in parentheses for diagnostics.
+fn spawn_error_text(e: &std::io::Error) -> String {
+    if e.kind() == std::io::ErrorKind::NotFound {
+        format!("Программа не установлена или не найдена ({e})")
+    } else if e.kind() == std::io::ErrorKind::PermissionDenied {
+        format!("Нет прав на запуск программы ({e})")
+    } else {
+        format!("Не удалось запустить программу ({e})")
+    }
+}
+
 /// Inspects the tesseract binary and its language data. Never panics.
 pub fn ocr_status() -> OcrStatus {
     // A status check is also the "re-check" button: pick up a Tesseract the
@@ -297,7 +309,7 @@ pub fn ocr_status() -> OcrStatus {
             false,
             last_non_empty_line(&output.stderr).or_else(|| last_non_empty_line(&output.stdout)),
         ),
-        Err(e) => (false, Some(e.to_string())),
+        Err(e) => (false, Some(spawn_error_text(&e))),
     };
 
     let mut languages = Vec::new();
@@ -325,7 +337,7 @@ pub fn ocr_status() -> OcrStatus {
         }
         Err(e) => {
             if error.is_none() {
-                error = Some(e.to_string());
+                error = Some(spawn_error_text(&e));
             }
         }
     }
@@ -395,7 +407,7 @@ fn download_tessdata_to(dir: &Path, spec: &TessdataSpec) -> Result<PathBuf, Stri
 
     std::fs::create_dir_all(dir).map_err(|e| {
         format!(
-            "Failed to create tessdata directory {}: {}",
+            "Не удалось создать папку языковых данных {}: {}",
             dir.display(),
             e
         )
@@ -404,7 +416,7 @@ fn download_tessdata_to(dir: &Path, spec: &TessdataSpec) -> Result<PathBuf, Stri
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
-            .map_err(|e| format!("Failed to secure {}: {}", dir.display(), e))?;
+            .map_err(|e| format!("Не удалось ограничить доступ к {}: {}", dir.display(), e))?;
     }
 
     let part = dir.join(format!("{file_name}.part"));
@@ -414,21 +426,21 @@ fn download_tessdata_to(dir: &Path, spec: &TessdataSpec) -> Result<PathBuf, Stri
         let response = match ureq::get(spec.url).timeout(Duration::from_secs(600)).call() {
             Ok(response) => response,
             Err(ureq::Error::Status(code, _)) => {
-                return Err(format!("Download failed: HTTP {}", code));
+                return Err(format!("Ошибка загрузки: HTTP {}", code));
             }
-            Err(e) => return Err(format!("Download failed: {}", e)),
+            Err(e) => return Err(format!("Ошибка загрузки: {}", e)),
         };
         let status = response.status();
         let mut reader = response.into_reader();
         let mut file = File::create(&part)
-            .map_err(|e| format!("Failed to create {}: {}", part.display(), e))?;
+            .map_err(|e| format!("Не удалось создать {}: {}", part.display(), e))?;
 
         let written = std::io::copy(&mut reader, &mut file)
-            .map_err(|e| format!("HTTP {}: download interrupted: {}", status, e))?;
+            .map_err(|e| format!("HTTP {}: загрузка прервана: {}", status, e))?;
         file.flush()
-            .map_err(|e| format!("Failed to flush {}: {}", part.display(), e))?;
+            .map_err(|e| format!("Не удалось записать на диск {}: {}", part.display(), e))?;
         file.sync_all()
-            .map_err(|e| format!("Failed to sync {}: {}", part.display(), e))?;
+            .map_err(|e| format!("Не удалось сохранить на диск {}: {}", part.display(), e))?;
         Ok(written)
     })();
 
@@ -443,14 +455,14 @@ fn download_tessdata_to(dir: &Path, spec: &TessdataSpec) -> Result<PathBuf, Stri
     if written <= spec.min_bytes {
         let _ = std::fs::remove_file(&part);
         return Err(format!(
-            "Downloaded {} is too small ({} bytes; expected more than {})",
+            "Загруженный файл {} слишком мал ({} байт, ожидалось больше {})",
             file_name, written, spec.min_bytes
         ));
     }
     let actual = crate::models::sha256_file(&part)?;
     if !actual.eq_ignore_ascii_case(spec.sha256) {
         let _ = std::fs::remove_file(&part);
-        return Err(format!("Downloaded {file_name} failed the SHA-256 check"));
+        return Err(format!("Загруженный файл {file_name} не прошёл проверку SHA-256"));
     }
 
     if let Err(first) = std::fs::rename(&part, &target) {
@@ -459,7 +471,7 @@ fn download_tessdata_to(dir: &Path, spec: &TessdataSpec) -> Result<PathBuf, Stri
         if let Err(second) = std::fs::rename(&part, &target) {
             let _ = std::fs::remove_file(&part);
             return Err(format!(
-                "Failed to finalize {}: {} (initial rename: {})",
+                "Не удалось завершить сохранение {}: {} (первая попытка переименования: {})",
                 target.display(),
                 second,
                 first
