@@ -36,6 +36,7 @@ libc = "0.2"
 open = "5"
 rusqlite = { version = "0.32", features = ["bundled"] }
 regex = "1"
+unicode-normalization = "0.1"
 sha2 = "0.10"
 rayon = "1.10"
 lopdf = "0.46.0"

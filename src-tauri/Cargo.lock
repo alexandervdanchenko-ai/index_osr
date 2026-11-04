@@ -2994,6 +2994,7 @@ dependencies = [
  "tree-sitter-python",
  "tree-sitter-rust",
  "tree-sitter-typescript",
+ "unicode-normalization",
  "ureq 2.12.1",
  "windows",
  "zip",

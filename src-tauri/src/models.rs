@@ -24,30 +24,35 @@ pub struct Artifact {
 }
 
 /// Static manifest of the files required by the semantic model.
+///
+/// index_osr: `potion-multilingual-128M` (model2vec, 101 languages, MIT)
+/// instead of the English-only `potion-base-8M`, pinned to one revision and
+/// verified by SHA-256. Hashes and sizes were taken by the CI model probe.
+pub const MULTILINGUAL_REVISION: &str = "73908c3438cf03b6a01bcb9611d62b23d0726f08";
 const ARTIFACTS: [Artifact; 3] = [
     Artifact {
         name: "model.safetensors",
         urls: &[
-            "https://huggingface.co/minishlab/potion-base-8M/resolve/main/model.safetensors",
+            "https://huggingface.co/minishlab/potion-multilingual-128M/resolve/73908c3438cf03b6a01bcb9611d62b23d0726f08/model.safetensors",
         ],
-        bytes_expected: 30_236_760,
-        sha256: Some("f65d0f325faadc1e121c319e2faa41170d3fa07d8c89abd48ca5358d9a223de2"),
+        bytes_expected: 512_361_560,
+        sha256: Some("14b5eb39cb4ce5666da8ad1f3dc6be4346e9b2d601c073302fa0a31bf7943397"),
     },
     Artifact {
         name: "tokenizer.json",
         urls: &[
-            "https://huggingface.co/minishlab/potion-base-8M/resolve/main/tokenizer.json",
+            "https://huggingface.co/minishlab/potion-multilingual-128M/resolve/73908c3438cf03b6a01bcb9611d62b23d0726f08/tokenizer.json",
         ],
-        bytes_expected: 683_666,
-        sha256: Some("e67e803f624fb4d67dea1c730d06e1067e1b14d830e2c2202569e3ef0f70bb50"),
+        bytes_expected: 18_616_131,
+        sha256: Some("19f1909063da3cfe3bd83a782381f040dccea475f4816de11116444a73e1b6a1"),
     },
     Artifact {
         name: "config.json",
         urls: &[
-            "https://huggingface.co/minishlab/potion-base-8M/resolve/main/config.json",
+            "https://huggingface.co/minishlab/potion-multilingual-128M/resolve/73908c3438cf03b6a01bcb9611d62b23d0726f08/config.json",
         ],
-        bytes_expected: 202,
-        sha256: Some("2a6ac0e9aaa356a68a5688070db78fc3a464fefe85d2f06a1905ce3718687553"),
+        bytes_expected: 271,
+        sha256: Some("595e4cab2093732efd5dbe084fd5c1826b5eea693b73b4c1fd971672867d2e54"),
     },
 ];
 
@@ -794,6 +799,16 @@ mod tests {
         assert!(VISUAL_ARTIFACTS.iter().all(|a| a.sha256.is_some()));
         assert!(VISUAL_ARTIFACTS.iter().all(|a| a.bytes_expected > 0));
         assert!(VISUAL_ARTIFACTS.iter().all(|a| !a.urls.is_empty()));
+    }
+
+    #[test]
+    fn semantic_model_is_the_pinned_multilingual_table() {
+        for artifact in &ARTIFACTS {
+            assert!(artifact.sha256.is_some(), "{}", artifact.name);
+            assert!(artifact.urls.iter().all(|url| url.contains(MULTILINGUAL_REVISION)
+                && url.contains("potion-multilingual-128M")
+                && !url.contains("/main/")));
+        }
     }
 
     #[test]

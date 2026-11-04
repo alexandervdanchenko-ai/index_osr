@@ -41,6 +41,9 @@ pub struct StaticTable {
     pub model_id: u32,
     continuing_prefix: String,
     max_input_chars: usize,
+    /// index_osr: SentencePiece Unigram tokenizer (multilingual models). When
+    /// set, it replaces WordPiece and unknown pieces are left out of pooling.
+    unigram: Option<crate::embed::unigram::UnigramTokenizer>,
 }
 
 impl StaticTable {
@@ -62,7 +65,11 @@ impl StaticTable {
     pub fn load_with_f32(dir: &Path, use_f32: bool) -> Option<Self> {
         let use_f32 = use_f32 || std::env::var_os("KENSAKU_F32_TABLE").is_some();
         let mut file = File::open(dir.join("model.safetensors")).ok()?;
-        let (embeddings, vocab_size, dim) = parse_safetensors(&mut file)?;
+        // index_osr: quantize while reading. The multilingual table is
+        // 500k x 256 f32 (512 MB); reading it whole and then converting held
+        // over 1 GB at startup.
+        let matrix = read_safetensors_matrix(&mut file, use_f32)?;
+        let (vocab_size, dim) = (matrix.vocab_size, matrix.dim);
         if dim != EMBEDDING_DIM {
             return None;
         }
@@ -95,14 +102,12 @@ impl StaticTable {
             Err(_) => true,
         };
 
-        let (embeddings, embeddings_i8, embedding_scales) = if use_f32 {
-            (embeddings, Vec::new(), Vec::new())
+        let (embeddings, embeddings_i8, embedding_scales) =
+            (matrix.f32, matrix.i8, matrix.scales);
+        let model_id = if tokenizer_parts.unigram.is_some() {
+            crate::embed::model::MULTILINGUAL_MODEL_ID
         } else {
-            // Quantize first, then drop the f32 matrix before returning so the
-            // startup peak does not retain both representations.
-            let (quantized, scales) = quantize(&embeddings, dim);
-            drop(embeddings);
-            (Vec::new(), quantized, scales)
+            crate::embed::model::REAL_MODEL_ID
         };
 
         Some(Self {
@@ -114,9 +119,10 @@ impl StaticTable {
             unknown_id: tokenizer_parts.unknown_id,
             lowercase: tokenizer_parts.lowercase,
             normalize,
-            model_id: crate::embed::model::REAL_MODEL_ID,
+            model_id,
             continuing_prefix: tokenizer_parts.continuing_prefix,
             max_input_chars: tokenizer_parts.max_input_chars,
+            unigram: tokenizer_parts.unigram,
         })
     }
 
@@ -132,8 +138,16 @@ impl StaticTable {
         !self.embeddings_i8.is_empty()
     }
 
-    /// Encodes `text` to WordPiece ids, without any special tokens.
+    /// Encodes `text` to token ids (WordPiece, or Unigram for multilingual
+    /// models), without any special tokens.
     pub fn token_ids(&self, text: &str) -> Vec<u32> {
+        if let Some(unigram) = &self.unigram {
+            // model2vec pools only known pieces: the unknown row carries no meaning.
+            let unk = unigram.unk_id();
+            let mut ids: Vec<u32> = unigram.encode(text).into_iter().filter(|id| *id != unk).collect();
+            ids.truncate(MAX_TOKENS);
+            return ids;
+        }
         let mut ids = Vec::new();
         for word in self.pre_tokenize(text) {
             self.tokenize_word(&word, &mut ids);
@@ -285,6 +299,7 @@ impl StaticTable {
             model_id: crate::embed::model::REAL_MODEL_ID,
             continuing_prefix: "##".to_string(),
             max_input_chars: 100,
+            unigram: None,
         }
     }
 
@@ -302,6 +317,7 @@ impl StaticTable {
             model_id: crate::embed::model::REAL_MODEL_ID,
             continuing_prefix: "##".to_string(),
             max_input_chars: 100,
+            unigram: None,
         }
     }
 }
@@ -373,10 +389,23 @@ struct TokenizerParts {
     lowercase: bool,
     continuing_prefix: String,
     max_input_chars: usize,
+    unigram: Option<crate::embed::unigram::UnigramTokenizer>,
 }
 
 fn parse_tokenizer(value: &Value, vocab_size: usize) -> Option<TokenizerParts> {
     let model = value.get("model")?;
+    if model.get("type").and_then(Value::as_str) == Some("Unigram") {
+        // index_osr: multilingual model (potion-multilingual-128M).
+        let unigram = crate::embed::unigram::UnigramTokenizer::from_json(value, vocab_size)?;
+        return Some(TokenizerParts {
+            vocab: HashMap::new(),
+            unknown_id: unigram.unk_id(),
+            lowercase: false,
+            continuing_prefix: String::new(),
+            max_input_chars: 0,
+            unigram: Some(unigram),
+        });
+    }
     let vocab_object = model.get("vocab")?.as_object()?;
 
     let mut vocab = HashMap::with_capacity(vocab_object.len());
@@ -426,11 +455,30 @@ fn parse_tokenizer(value: &Value, vocab_size: usize) -> Option<TokenizerParts> {
         lowercase,
         continuing_prefix,
         max_input_chars,
+        unigram: None,
     })
 }
 
+/// Embedding matrix read from safetensors: f32 rows, or i8 rows plus one
+/// scale per row (same scheme as [`quantize`]).
+struct Matrix {
+    f32: Vec<f32>,
+    i8: Vec<i8>,
+    scales: Vec<f32>,
+    vocab_size: usize,
+    dim: usize,
+}
+
 /// Parses one safetensors file and returns `(embeddings, vocab_size, dim)`.
+#[cfg(test)]
 fn parse_safetensors<R: Read + Seek>(reader: &mut R) -> Option<(Vec<f32>, usize, usize)> {
+    let matrix = read_safetensors_matrix(reader, true)?;
+    Some((matrix.f32, matrix.vocab_size, matrix.dim))
+}
+
+/// Reads the embedding matrix in row blocks. With `keep_f32 == false` each
+/// block is quantized immediately, so memory stays near the i8 size.
+fn read_safetensors_matrix<R: Read + Seek>(reader: &mut R, keep_f32: bool) -> Option<Matrix> {
     let mut length_bytes = [0u8; 8];
     reader.read_exact(&mut length_bytes).ok()?;
     let header_len = u64::from_le_bytes(length_bytes);
@@ -494,24 +542,51 @@ fn parse_safetensors<R: Read + Seek>(reader: &mut R) -> Option<(Vec<f32>, usize,
         .seek(SeekFrom::Start(data_start.checked_add(begin)?))
         .ok()?;
 
-    let mut raw = vec![0u8; expected as usize];
-    reader.read_exact(&mut raw).ok()?;
-
-    let embeddings = if dtype == "F32" {
-        raw.as_chunks::<4>()
-            .0
-            .iter()
-            .map(|c| f32::from_le_bytes(*c))
-            .collect()
-    } else {
-        raw.as_chunks::<2>()
-            .0
-            .iter()
-            .map(|c| f16_to_f32(u16::from_le_bytes(*c)))
-            .collect()
+    let row_bytes = dim * item_size as usize;
+    const BLOCK_ROWS: usize = 4096;
+    let mut raw = vec![0u8; row_bytes * BLOCK_ROWS.min(vocab_size.max(1))];
+    let mut matrix = Matrix {
+        f32: Vec::new(),
+        i8: Vec::new(),
+        scales: Vec::new(),
+        vocab_size,
+        dim,
     };
+    if keep_f32 {
+        matrix.f32.reserve_exact(vocab_size * dim);
+    } else {
+        matrix.i8.reserve_exact(vocab_size * dim);
+        matrix.scales.reserve_exact(vocab_size);
+    }
+    let mut block = Vec::with_capacity(dim * BLOCK_ROWS);
+    let mut remaining = vocab_size;
+    while remaining > 0 {
+        let rows = remaining.min(BLOCK_ROWS);
+        let bytes = &mut raw[..rows * row_bytes];
+        reader.read_exact(bytes).ok()?;
+        block.clear();
+        if dtype == "F32" {
+            block.extend(bytes.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)));
+        } else {
+            block.extend(
+                bytes
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|c| f16_to_f32(u16::from_le_bytes(*c))),
+            );
+        }
+        if keep_f32 {
+            matrix.f32.extend_from_slice(&block);
+        } else {
+            let (quantized, scales) = quantize(&block, dim);
+            matrix.i8.extend_from_slice(&quantized);
+            matrix.scales.extend_from_slice(&scales);
+        }
+        remaining -= rows;
+    }
 
-    Some((embeddings, vocab_size, dim))
+    Some(matrix)
 }
 
 fn tensor_info(value: &Value) -> Option<(String, Vec<usize>, u64, u64)> {
@@ -605,6 +680,31 @@ mod tests {
         assert_eq!(dim, EMBEDDING_DIM);
         assert_eq!(embeddings.len(), EMBEDDING_DIM);
         assert_eq!(&embeddings[..4], &[1.0, 2.0, 3.5, -4.0]);
+    }
+
+    #[test]
+    fn streaming_quantization_matches_whole_matrix_quantization() {
+        // More rows than one read block, with varied magnitudes per row.
+        let rows = 4096 + 37;
+        let mut values = Vec::with_capacity(rows * EMBEDDING_DIM);
+        for r in 0..rows {
+            for c in 0..EMBEDDING_DIM {
+                values.push(((r * 31 + c * 7) % 97) as f32 * 0.01 * if c % 3 == 0 { -1.0 } else { 1.0 } * (1 + r % 5) as f32);
+            }
+        }
+        let data: Vec<u8> = values.iter().flat_map(|v| v.to_le_bytes()).collect();
+        let bytes = safetensors_bytes("F32", &[rows, EMBEDDING_DIM], &data);
+
+        let streamed = read_safetensors_matrix(&mut Cursor::new(bytes.clone()), false).expect("i8");
+        let (expected_i8, expected_scales) = quantize(&values, EMBEDDING_DIM);
+        assert!(streamed.f32.is_empty());
+        assert_eq!(streamed.i8, expected_i8);
+        assert_eq!(streamed.scales, expected_scales);
+        assert_eq!(streamed.vocab_size, rows);
+
+        let full = read_safetensors_matrix(&mut Cursor::new(bytes), true).expect("f32");
+        assert_eq!(full.f32, values);
+        assert!(full.i8.is_empty());
     }
 
     #[test]

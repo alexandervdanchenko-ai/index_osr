@@ -12,6 +12,9 @@ pub const DEFAULT_MODEL_ID: u32 = 1;
 pub const REAL_MODEL_ID: u32 = 2;
 /// Id of the optional ONNX smart embedding pack (`bge-small-en-v1.5`).
 pub const SMART_MODEL_ID: u32 = 3;
+/// index_osr: id of the multilingual static table (`potion-multilingual-128M`,
+/// Unigram tokenizer). A new id makes stored vectors from another model stale.
+pub const MULTILINGUAL_MODEL_ID: u32 = 4;
 
 static GLOBAL: OnceLock<ModelRegistry> = OnceLock::new();
 
@@ -81,7 +84,11 @@ impl ModelRegistry {
         Some(Self {
             provider: EmbeddingProviderKind::Static,
             model_id: table.model_id,
-            name: "potion-base-8M".to_string(),
+            name: if table.model_id == MULTILINGUAL_MODEL_ID {
+                "potion-multilingual-128M".to_string()
+            } else {
+                "potion-base-8M".to_string()
+            },
             dim: table.dim,
             normalize: table.normalize,
             fallback_reason: None,

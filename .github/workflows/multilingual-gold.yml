@@ -1,0 +1,56 @@
+name: Multilingual model (reference check)
+
+# index_osr: сверяет Rust-токенизатор Unigram и пулинг model2vec с эталоном
+# библиотеки tokenizers на закреплённой ревизии potion-multilingual-128M.
+# Модель (530 МБ) не хранится в репозитории: задача скачивает её и проверяет
+# SHA-256 перед запуском тестов.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src-tauri/src/embed/**"
+      - "src-tauri/src/models.rs"
+      - "src-tauri/tests/multilingual_gold.rs"
+      - ".github/workflows/multilingual-gold.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  gold:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libgtk-3-dev
+      - uses: oven-sh/setup-bun@v2
+      - name: Web build (required by generate_context!)
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+      - name: Download pinned model and verify hashes
+        env:
+          REV: 73908c3438cf03b6a01bcb9611d62b23d0726f08
+        run: |
+          set -euo pipefail
+          mkdir -p model
+          base="https://huggingface.co/minishlab/potion-multilingual-128M/resolve/$REV"
+          for f in config.json tokenizer.json model.safetensors; do
+            curl -fsSL --retry 3 -o "model/$f" "$base/$f"
+          done
+          cd model
+          sha256sum -c - <<'EOF'
+          595e4cab2093732efd5dbe084fd5c1826b5eea693b73b4c1fd971672867d2e54  config.json
+          19f1909063da3cfe3bd83a782381f040dccea475f4816de11116444a73e1b6a1  tokenizer.json
+          14b5eb39cb4ce5666da8ad1f3dc6be4346e9b2d601c073302fa0a31bf7943397  model.safetensors
+          EOF
+      - name: Reference tests
+        env:
+          KENSAKU_MULTILINGUAL_DIR: ${{ github.workspace }}/model
+        run: cargo test --manifest-path src-tauri/Cargo.toml --test multilingual_gold -- --ignored --nocapture

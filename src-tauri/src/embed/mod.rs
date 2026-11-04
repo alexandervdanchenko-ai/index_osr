@@ -4,6 +4,7 @@ pub mod queue;
 pub mod scanner;
 pub mod smart;
 pub mod table;
+pub mod unigram;
 pub mod units;
 pub mod visual;
 pub mod wordpiece;
