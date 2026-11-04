@@ -1,0 +1,135 @@
+name: Model probe (multilingual embeddings)
+
+# index_osr: служебная задача. Скачивает многоязычную модель смысла, фиксирует
+# SHA-256 и размеры файлов, описывает формат токенизатора и сохраняет эталонную
+# токенизацию и эмбеддинги для русских фраз. Результат - артефакт probe.json,
+# по нему пишутся проверки Rust-реализации. Запускается вручную или пушем в
+# ветку probe-model; на main не влияет.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [probe-model]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install "tokenizers==0.22.*" "safetensors==0.6.*" "numpy<3" "huggingface_hub<1"
+      - name: Download and probe
+        shell: python
+        run: |
+          import hashlib, json, os
+          import numpy as np
+          from huggingface_hub import hf_hub_download, HfApi
+          from safetensors.numpy import load_file
+          from tokenizers import Tokenizer
+
+          repo = "minishlab/potion-multilingual-128M"
+          api = HfApi()
+          revision = api.model_info(repo).sha
+          files = {}
+          paths = {}
+          for name in ["config.json", "tokenizer.json", "model.safetensors"]:
+              p = hf_hub_download(repo, name, revision=revision)
+              paths[name] = p
+              data = open(p, "rb").read()
+              files[name] = {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+
+          tok_json = json.load(open(paths["tokenizer.json"], encoding="utf-8"))
+          model = tok_json["model"]
+          vocab = model.get("vocab")
+          summary = {
+              "model_type": model.get("type"),
+              "vocab_kind": type(vocab).__name__,
+              "vocab_len": len(vocab) if vocab is not None else None,
+              "vocab_head": vocab[:12] if isinstance(vocab, list) else None,
+              "unk_id": model.get("unk_id"),
+              "unk_token": model.get("unk_token"),
+              "byte_fallback": model.get("byte_fallback"),
+              "normalizer": tok_json.get("normalizer"),
+              "pre_tokenizer": tok_json.get("pre_tokenizer"),
+              "post_processor": tok_json.get("post_processor"),
+              "decoder": tok_json.get("decoder"),
+              "added_tokens": tok_json.get("added_tokens", [])[:20],
+              "model_keys": sorted(model.keys()),
+          }
+
+          tensors = load_file(paths["model.safetensors"])
+          tensor_info = {k: {"shape": list(v.shape), "dtype": str(v.dtype)} for k, v in tensors.items()}
+          emb_name = "embeddings" if "embeddings" in tensors else next(iter(tensors))
+          emb = tensors[emb_name].astype(np.float32)
+          weights = tensors.get("weights")
+
+          config = json.load(open(paths["config.json"], encoding="utf-8"))
+          tokenizer = Tokenizer.from_file(paths["tokenizer.json"])
+
+          samples = [
+              "Приказ об увольнении работника за прогул",
+              "Работодатель не выплатил заработную плату",
+              "восстановление на работе и оплата вынужденного прогула",
+              "Ёлкин подал исковое заявление в Тушинский районный суд г. Москвы",
+              "ст. 81 ТК РФ, п. 6 ч. 1",
+              "The quick brown fox",
+              "ИНЖСИСТЕМС  ООО «Будвар»",
+          ]
+          gold = []
+          for text in samples:
+              enc = tokenizer.encode(text, add_special_tokens=False)
+              ids = enc.ids
+              # model2vec: mean of (optionally weighted) rows, then L2 normalize
+              rows = emb[ids] if ids else np.zeros((1, emb.shape[1]), np.float32)
+              if weights is not None and ids:
+                  rows = rows * weights[ids][:, None]
+              vec = rows.mean(axis=0)
+              n = np.linalg.norm(vec)
+              if config.get("normalize", True) and n > 0:
+                  vec = vec / n
+              gold.append({
+                  "text": text,
+                  "ids": ids,
+                  "tokens": enc.tokens,
+                  "normalized": tokenizer.normalizer.normalize_str(text) if tokenizer.normalizer else text,
+                  "embedding_head": [round(float(x), 6) for x in vec[:8]],
+              })
+
+          def embed(text):
+              ids = tokenizer.encode(text, add_special_tokens=False).ids
+              rows = emb[ids]
+              if weights is not None:
+                  rows = rows * weights[ids][:, None]
+              v = rows.mean(axis=0)
+              return v / (np.linalg.norm(v) or 1)
+
+          pairs = [
+              ("увольнение работника за прогул", "работник уволен за отсутствие на рабочем месте"),
+              ("увольнение работника за прогул", "договор купли-продажи квартиры"),
+              ("взыскание заработной платы", "задолженность по зарплате перед сотрудником"),
+              ("взыскание заработной платы", "раздел имущества супругов"),
+          ]
+          similarity = [{"a": a, "b": b, "cos": round(float(embed(a) @ embed(b)), 4)} for a, b in pairs]
+
+          out = {
+              "repo": repo, "revision": revision, "files": files, "config": config,
+              "tokenizer": summary, "tensors": tensor_info, "embedding_tensor": emb_name,
+              "gold": gold, "similarity": similarity,
+          }
+          os.makedirs("out", exist_ok=True)
+          json.dump(out, open("out/probe.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+          # Full tokenizer.json is needed to reproduce the normalizer offline.
+          import shutil
+          shutil.copy(paths["tokenizer.json"], "out/tokenizer.json")
+          print(json.dumps({k: out[k] for k in ["revision", "files", "config", "tensors", "similarity"]}, ensure_ascii=False, indent=1))
+          print(json.dumps(summary, ensure_ascii=False)[:4000])
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: probe
+          path: out/
+          retention-days: 7
