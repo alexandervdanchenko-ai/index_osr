@@ -11,6 +11,15 @@ import {
   latencyToken,
 } from "../../lib/format";
 
+const PHASE_RU: Record<string, string> = {
+  idle: "простой",
+  verifying: "проверка",
+  walking: "обход папок",
+  extracting: "извлечение текста",
+  embedding: "смысловой анализ",
+  committing: "запись",
+};
+
 /* Stats for Nerds — the centerpiece. Polls get_stats every 2 s while this
    section is mounted (the ONLY place that does). Falls back to zeroed
    placeholders when the backend command is missing. */
@@ -77,10 +86,10 @@ export function StatsForNerds() {
         <p className="text-[11px] text-subtle">
           {live ? (
             <>
-              polled from <code className="font-mono text-accent">get_stats</code> every 2 s
+              данные <code className="font-mono text-accent">get_stats</code> каждые 2 с
             </>
           ) : (
-            "waiting for get_stats — showing zeroed placeholders"
+            "ожидание get_stats, показаны нулевые значения"
           )}
         </p>
         <button
@@ -89,7 +98,7 @@ export function StatsForNerds() {
           className="btn btn-secondary h-8 px-3 text-[12px]"
         >
           {copied ? <Check className="h-3 w-3 text-accent" /> : <Copy className="h-3 w-3" />}
-          Copy diagnostics
+          Скопировать диагностику
         </button>
         <button
           type="button"
@@ -97,7 +106,7 @@ export function StatsForNerds() {
           onClick={async () => {
             if (
               !window.confirm(
-                "Rebuild the index from scratch? Kensaku clears the full-text index, semantic units and thumbnails, then rescans your folders.",
+                "Перестроить индекс с нуля? Программа удалит полнотекстовый индекс, смысловые фрагменты и миниатюры, а затем заново просканирует папки.",
               )
             )
               return;
@@ -108,73 +117,73 @@ export function StatsForNerds() {
               await invoke("rebuild_index");
             } catch (err) {
               console.error("Rebuild failed:", err);
-              alert("Rebuild failed: " + err);
+              alert("Не удалось перестроить индекс: " + err);
             } finally {
               setRebuilding(false);
             }
           }}
           className="btn btn-secondary h-8 px-3 text-[12px]"
         >
-          {rebuilding ? "Rebuilding…" : ing.is_indexing ? "Indexing…" : "Rebuild index"}
+          {rebuilding ? "Перестройка…" : ing.is_indexing ? "Индексация…" : "Перестроить индекс"}
         </button>
       </div>
 
       {/* Latency */}
-      <Card title="Query latency">
+      <Card title="Время ответа на запросы">
         <div className="flex items-center gap-5 px-4 py-3.5">
           <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-            <StatNumber value={q.p50_ms.toFixed(1)} suffix="ms" caption="p50" />
-            <StatNumber value={q.p95_ms.toFixed(1)} suffix="ms" caption="p95" />
+            <StatNumber value={q.p50_ms.toFixed(1)} suffix="мс" caption="p50" />
+            <StatNumber value={q.p95_ms.toFixed(1)} suffix="мс" caption="p95" />
             <StatNumber
               value={q.p99_ms.toFixed(1)}
-              suffix="ms"
+              suffix="мс"
               tone={latencyToken(q.p99_ms)}
               caption="p99"
             />
             <StatNumber
               value={q.last_ms.toFixed(1)}
-              suffix="ms"
+              suffix="мс"
               tone={latencyToken(q.last_ms)}
-              caption="last"
+              caption="последний"
             />
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
             <Sparkline values={q.history} width={110} height={36} />
             <span className="font-mono text-[11px] text-subtle">
-              {formatComma(q.total)} queries
+              {formatComma(q.total)} запр.
             </span>
           </div>
         </div>
       </Card>
 
       {/* Index composition */}
-      <Card title="Index composition">
+      <Card title="Состав индекса">
         <div className="grid grid-cols-2 gap-x-6 px-4 py-3 sm:grid-cols-4">
-          <StatNumber value={formatComma(i.files)} caption="files" />
-          <StatNumber value={formatComma(i.dirs)} caption="folders" />
-          <StatNumber value={formatComma(i.content_docs)} caption="content docs" />
-          <StatNumber value={formatComma(i.semantic_units)} caption="semantic units" />
+          <StatNumber value={formatComma(i.files)} caption="файлы" />
+          <StatNumber value={formatComma(i.dirs)} caption="папки" />
+          <StatNumber value={formatComma(i.content_docs)} caption="с текстом" />
+          <StatNumber value={formatComma(i.semantic_units)} caption="смысловые фрагменты" />
         </div>
         <div className="border-t border-line">
-          <Field label="Tantivy (full-text)" description="BM25 postings + fast fields.">
+          <Field label="Tantivy (полнотекстовый)" description="Инвертированный индекс BM25 и быстрые поля.">
             <span className="font-mono text-[11px] text-fg">{formatBytes(i.tantivy_bytes)}</span>
           </Field>
-          <Field label="Vectors (i8)" description="Static embedding tier.">
+          <Field label="Векторы (i8)" description="Статический уровень эмбеддингов.">
             <span className="font-mono text-[11px] text-fg">{formatBytes(i.vector_bytes)}</span>
           </Field>
-          <Field label="Metadata (SQLite WAL)" description="Durable truth, mmap snapshot.">
+          <Field label="Метаданные (SQLite WAL)" description="Основное хранилище, снимок в памяти.">
             <span className="font-mono text-[11px] text-fg">{formatBytes(i.metadata_db_bytes)}</span>
           </Field>
-          <Field label="Last reconcile" description="How fresh the index is, right now.">
+          <Field label="Последняя сверка" description="Насколько индекс актуален сейчас.">
             <span className="font-mono text-[11px] text-fg">
-              {i.last_reconcile_secs_ago == null ? "—" : `${Math.round(i.last_reconcile_secs_ago)} s ago`}
+              {i.last_reconcile_secs_ago == null ? "—" : `${Math.round(i.last_reconcile_secs_ago)} с назад`}
             </span>
           </Field>
         </div>
       </Card>
 
       {/* Ingestion */}
-      <Card title="Ingestion">
+      <Card title="Индексация">
         <div className="px-4 py-3.5">
           <div className="flex items-center justify-between gap-4 pb-2">
             <div className="flex items-center gap-2">
@@ -184,13 +193,13 @@ export function StatsForNerds() {
                 }`}
               />
               <span className="font-mono text-[12px] text-fg">
-                {ing.phase === "walking" && (ing.files_indexed ?? 0) === 0 ? "verifying" : ing.phase}
+                {PHASE_RU[ing.phase === "walking" && (ing.files_indexed ?? 0) === 0 ? "verifying" : ing.phase] ?? ing.phase}
               </span>
-              {!live && <Badge>placeholder</Badge>}
+              {!live && <Badge>заглушка</Badge>}
             </div>
             <span className="font-mono text-[11px] text-subtle">
-              {ing.files_per_sec > 0 ? `${formatComma(Math.round(ing.files_per_sec))} f/s` : "idle"}
-              {ing.eta_secs != null && ing.eta_secs > 0 && ` · eta ${formatDuration(ing.eta_secs)}`}
+              {ing.files_per_sec > 0 ? `${formatComma(Math.round(ing.files_per_sec))} ф/с` : "простой"}
+              {ing.eta_secs != null && ing.eta_secs > 0 && ` · осталось ${formatDuration(ing.eta_secs)}`}
             </span>
           </div>
           {/* Indeterminate when no total is known; depth signals backlog. */}
@@ -201,28 +210,28 @@ export function StatsForNerds() {
             />
           </div>
           <div className="flex gap-6 pt-3">
-            <StatNumber value={formatComma(ing.files_indexed)} caption="files indexed" />
-            <StatNumber value={formatComma(ing.content_indexed)} caption="content extracted" />
-            <StatNumber value={formatComma(ing.units_indexed)} caption="units embedded" />
-            <StatNumber value={formatComma(ing.embed_queue_depth)} caption="embed queue" />
+            <StatNumber value={formatComma(ing.files_indexed)} caption="файлов в индексе" />
+            <StatNumber value={formatComma(ing.content_indexed)} caption="текст извлечён" />
+            <StatNumber value={formatComma(ing.units_indexed)} caption="фрагментов обработано" />
+            <StatNumber value={formatComma(ing.embed_queue_depth)} caption="в очереди" />
           </div>
         </div>
       </Card>
 
       {/* Runtime */}
-      <Card title="Runtime">
+      <Card title="Работа программы">
         <div className="grid grid-cols-2 gap-x-6 px-4 py-3 sm:grid-cols-3">
-          <StatNumber value={formatDuration(rt.uptime_secs)} caption="daemon uptime" />
-          <StatNumber value={formatBytes(rt.rss_bytes)} caption="rss memory" />
+          <StatNumber value={formatDuration(rt.uptime_secs)} caption="время работы" />
+          <StatNumber value={formatBytes(rt.rss_bytes)} caption="память (RSS)" />
           <StatNumber
             value={rt.model_id || "—"}
-            caption="semantic model"
+            caption="смысловая модель"
           />
         </div>
         <div className="flex gap-5 border-t border-line px-4 py-2.5">
-          <Dot ok={rt.watcher_ok} label="watcher" />
-          <Dot ok={rt.semantic_ready} label="semantic ready" />
-          <Dot ok={live} label="live telemetry" />
+          <Dot ok={rt.watcher_ok} label="отслеживание файлов" />
+          <Dot ok={rt.semantic_ready} label="смысловой поиск готов" />
+          <Dot ok={live} label="живые данные" />
         </div>
       </Card>
     </div>

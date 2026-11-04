@@ -13,7 +13,7 @@ export function reasonFrom(err: unknown): string {
   } catch {
     /* non-serializable — fall through */
   }
-  return "unknown error";
+  return "неизвестная ошибка";
 }
 
 export function Field({
@@ -109,11 +109,11 @@ export function Stepper({
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
   return (
     <div className="flex h-8 items-center rounded-control bg-accent-soft shadow-[inset_0_0_0_1px_var(--border)]">
-      <button type="button" onClick={() => onChange(clamp(value - step))} className="flex h-full w-8 items-center justify-center text-muted transition-colors hover:text-fg" aria-label="Decrease">
+      <button type="button" onClick={() => onChange(clamp(value - step))} className="flex h-full w-8 items-center justify-center text-muted transition-colors hover:text-fg" aria-label="Уменьшить">
         −
       </button>
       <span className="t-meta w-12 text-center text-fg">{value}</span>
-      <button type="button" onClick={() => onChange(clamp(value + step))} className="flex h-full w-8 items-center justify-center text-muted transition-colors hover:text-fg" aria-label="Increase">
+      <button type="button" onClick={() => onChange(clamp(value + step))} className="flex h-full w-8 items-center justify-center text-muted transition-colors hover:text-fg" aria-label="Увеличить">
         +
       </button>
     </div>

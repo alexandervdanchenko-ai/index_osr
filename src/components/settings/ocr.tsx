@@ -17,7 +17,7 @@ import { Switch } from "./kit";
    reserved so resolving the status never shifts the row. */
 
 const OCR_DESCRIPTION =
-  "Read text from screenshots, scans and photos. PP-OCRv6 is the default (best recall on dense UI, fastest batch); Indra OCR is the multilingual/rotated-scan option; Tesseract is the clean-text fallback where neither can run. Existing images are re-scanned after saving.";
+  "Распознавание текста на скриншотах, сканах и фотографиях. PP-OCRv6 - вариант по умолчанию (лучше всего находит текст на плотных скриншотах, быстрее всех); Indra OCR - для многоязычных и повёрнутых сканов; Tesseract - запасной вариант для чистого текста, если первые два не работают. После сохранения имеющиеся изображения будут распознаны заново.";
 
 /* Engines that run from a downloaded model pack inside Kensaku. */
 const PACKS = {
@@ -26,14 +26,14 @@ const PACKS = {
     statusCommand: "get_ocr_pack_status",
     downloadCommand: "download_ocr_pack",
     blurb:
-      "About 6 MB · runs inside Kensaku · highest token recall on dense UI screenshots, fastest batch throughput; best default for screenshot search.",
+      "Около 6 МБ · работает внутри программы · лучше всего находит текст на плотных скриншотах, самая быстрая пакетная обработка; оптимален для поиска по скриншотам.",
   },
   indra: {
     name: "Indra OCR",
     statusCommand: "get_indra_pack_status",
     downloadCommand: "download_indra_pack",
     blurb:
-      "About 27 MB · runs inside Kensaku · 80+ languages, rotated/skewed scans and tilted pages; comparable recall to PP-OCR, slightly slower on simple images. Model weights under a modified OpenRAIL-M license.",
+      "Около 27 МБ · работает внутри программы · более 80 языков, повёрнутые и перекошенные сканы; по качеству сопоставим с PP-OCR, на простых изображениях чуть медленнее. Веса модели распространяются по изменённой лицензии OpenRAIL-M.",
   },
 } as const;
 
@@ -170,31 +170,31 @@ export function OcrField({
 
   const hint: React.ReactNode | null = usingPpocr ? (
     ppocrReady ? (
-      <span className="font-mono text-muted">{packInfo.name} ready · verified on a test image</span>
+      <span className="font-mono text-muted">{packInfo.name} готов · проверен на тестовом изображении</span>
     ) : downloading ? (
-      <span className="font-mono text-muted">Downloading {packInfo.name}…</span>
+      <span className="font-mono text-muted">Загрузка {packInfo.name}…</span>
     ) : status === null ? null : (
       <>
         <TriangleAlert className="h-3 w-3 shrink-0 text-warning" />
         <span className="text-warning">
-          {packProblem ?? `${packInfo.name} cannot run.`}
-          {fallbackEngine ? ` Using ${fallbackEngine} meanwhile.` : ""}
+          {packProblem ?? `${packInfo.name} не может работать.`}
+          {fallbackEngine ? ` Пока используется ${fallbackEngine}.` : ""}
         </span>
       </>
     )
   ) : engineMissing ? (
     <>
       <TriangleAlert className="h-3 w-3 shrink-0 text-warning" />
-      <span className="text-warning">tesseract not found or not runnable.</span>
+      <span className="text-warning">Tesseract не найден или не запускается.</span>
     </>
   ) : noLanguages ? (
     <>
       <TriangleAlert className="h-3 w-3 shrink-0 text-warning" />
-      <span className="text-warning">OCR engine found, but no language data.</span>
+      <span className="text-warning">Модуль OCR найден, но нет языковых данных.</span>
     </>
   ) : status?.available ? (
     <span className="font-mono text-muted">
-      Engine ready · languages: {status.languages.join(", ")}
+      Модуль готов · языки: {status.languages.join(", ")}
     </span>
   ) : null; /* unknown — slot reserved but empty */
 
@@ -202,7 +202,7 @@ export function OcrField({
     <div className={unavailable ? "border-b border-line px-4 py-3" : "px-4 py-3"}>
       <div className="flex items-center justify-between gap-6">
         <div className="min-w-0 space-y-0.5">
-          <p className="text-[12px] font-medium text-fg">OCR (images)</p>
+          <p className="text-[12px] font-medium text-fg">OCR (изображения)</p>
           <p className="text-[12px] leading-[18px] text-muted">{OCR_DESCRIPTION}</p>
           {/* Reserved line: same height whether or not a hint resolves into it. */}
           <p className="flex min-h-[18px] items-center gap-1.5 text-[11px] leading-[18px]">
@@ -218,11 +218,11 @@ export function OcrField({
 
       <div className="mt-3 flex items-center justify-between gap-4 border-t border-line pt-3">
         <div>
-          <p className="text-[11px] font-medium text-fg">OCR engine</p>
-          <p className="text-[12px] text-muted">Pick one. All read images; they are alternatives.</p>
+          <p className="text-[11px] font-medium text-fg">Модуль OCR</p>
+          <p className="text-[12px] text-muted">Выберите один. Все распознают изображения, это взаимозаменяемые варианты.</p>
         </div>
         <select
-          aria-label="OCR engine"
+          aria-label="Модуль OCR"
           value={engine}
           onChange={(e) =>
             setConfig((c) =>
@@ -231,12 +231,12 @@ export function OcrField({
           }
           className="h-8 rounded-control border border-line bg-[var(--panel)] px-2 text-[11px] text-fg"
         >
-          <option value="tesseract">Tesseract (clean ASCII, separate install)</option>
+          <option value="tesseract">Tesseract (чистый текст, ставится отдельно)</option>
           <option value="accurate" disabled={!status?.accurate_compiled}>
-            PP-OCRv6 (recommended · dense UI, fast)
+            PP-OCRv6 (рекомендуется · скриншоты, быстро)
           </option>
           <option value="indra" disabled={!status?.accurate_compiled}>
-            Indra OCR (multilingual, rotated scans)
+            Indra OCR (много языков, повёрнутые сканы)
           </option>
         </select>
       </div>
@@ -245,22 +245,22 @@ export function OcrField({
         <div className="mt-3 border-t border-line pt-3">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-medium text-fg">{packInfo.name} pack</p>
+              <p className="text-[11px] font-medium text-fg">Пакет {packInfo.name}</p>
               <p className="text-[12px] leading-[18px] text-muted">{packInfo.blurb}</p>
               <p className="mt-0.5 font-mono text-[11px] text-subtle">
                 {pack?.downloading
                   ? pack.progress?.phase === "verifying"
-                    ? `Verifying ${pack.progress.file}…`
-                    : `Downloading ${Math.round(
+                    ? `Проверка ${pack.progress.file}…`
+                    : `Загрузка ${Math.round(
                         ((pack.progress?.downloaded ?? 0) / Math.max(1, pack.progress?.total ?? 1)) * 100,
                       )}%`
                   : pack?.ready
                     ? ppocrReady
-                      ? "Installed · verified"
-                      : packProblem ?? "Installed"
+                      ? "Установлен · проверен"
+                      : packProblem ?? "Установлен"
                     : pack?.error
                       ? pack.error
-                      : "Not installed"}
+                      : "Не установлен"}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -274,7 +274,7 @@ export function OcrField({
                   <RefreshCw
                     className={`h-3 w-3 ${packBusy || pack?.downloading ? "animate-spin" : ""}`}
                   />
-                  Download
+                  Загрузить
                 </button>
               )}
             </div>
@@ -303,7 +303,7 @@ export function OcrField({
       ) : (
         <div className="mt-3 border-t border-line pt-3">
           <p className="text-[12px] leading-[18px] text-muted">
-            {packInfo?.name} is not compiled into this build. Rebuild with default features to enable it.
+            {packInfo?.name} не включён в эту сборку. Чтобы включить, пересоберите программу с функциями по умолчанию.
           </p>
         </div>
       ))}
@@ -328,7 +328,7 @@ export function OcrField({
             </div>
             <button
               type="button"
-              title={`Copy install command — ${platform.command}`}
+              title={`Скопировать команду установки: ${platform.command}`}
               onClick={() => copy(platform.command)}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-muted transition-colors hover:bg-elevated hover:text-fg"
             >
@@ -352,7 +352,7 @@ export function OcrField({
                   </code>
                   <button
                     type="button"
-                    title={`Copy install command — ${p.command}`}
+                    title={`Скопировать команду установки: ${p.command}`}
                     onClick={() => copy(p.command)}
                     className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-subtle transition-colors hover:bg-accent-soft hover:text-fg"
                   >
@@ -379,7 +379,7 @@ export function OcrField({
                   allPlatforms ? "rotate-180" : ""
                 }`}
               />
-              Other platforms
+              Другие системы
             </button>
             <button
               type="button"
@@ -391,7 +391,7 @@ export function OcrField({
                 className={`h-3 w-3 ${rechecking ? "animate-spin" : ""}`}
                 aria-hidden={rechecking}
               />
-              Re-check
+              Проверить снова
             </button>
           </div>
         </div>
@@ -404,8 +404,8 @@ export function OcrField({
             </p>
           )}
           <p className="text-[12px] leading-[18px] text-muted">
-            Language data is downloaded during setup. Use <b>About → Run setup again</b> to
-            acquire it, then re-check here.
+            Языковые данные загружаются при настройке. Откройте <b>О программе → Повторить настройку</b>,
+            затем проверьте снова здесь.
           </p>
           <button
             type="button"
@@ -414,7 +414,7 @@ export function OcrField({
             className="btn btn-secondary h-8 px-3 text-[12px]"
           >
             <RefreshCw className={`h-3 w-3 ${rechecking ? "animate-spin" : ""}`} aria-hidden={rechecking} />
-            Re-check
+            Проверить снова
           </button>
         </div>
       )}

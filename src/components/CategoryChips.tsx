@@ -32,7 +32,7 @@ export const CategoryChips: React.FC<CategoryChipsProps> = ({ results, facets, s
               key={chip.id}
               type="button"
               onClick={(e) => onToggle(chip.id, e.altKey)}
-              title={isExcluded ? "Excluded. Click to clear" : "Click to include, Alt-click to exclude"}
+              title={isExcluded ? "Исключено. Нажмите, чтобы сбросить" : "Нажмите, чтобы включить, Alt+щелчок - исключить"}
               data-active={isSelected && !isExcluded}
               className={`seg !px-3 ${isExcluded ? "text-danger line-through" : ""} ${dim ? "opacity-40" : ""}`}
             >
