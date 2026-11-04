@@ -46,30 +46,30 @@ jobs:
           $out = Join-Path $env:RUNNER_TEMP "tess"
           & 7z x $setup "-o$out" -y | Out-Null
           if (-not (Test-Path "$out\tesseract.exe")) { throw "tesseract.exe not found in installer" }
-          New-Item -ItemType Directory -Force -Path "dist\index_osr\tesseract\tessdata" | Out-Null
-          Copy-Item "$out\tesseract.exe" "dist\index_osr\tesseract\"
-          Copy-Item "$out\*.dll" "dist\index_osr\tesseract\"
+          New-Item -ItemType Directory -Force -Path "bundle\index_osr\tesseract\tessdata" | Out-Null
+          Copy-Item "$out\tesseract.exe" "bundle\index_osr\tesseract\"
+          Copy-Item "$out\*.dll" "bundle\index_osr\tesseract\"
           foreach ($lang in @(@("rus", $env:RUS_SHA256), @("eng", $env:ENG_SHA256))) {
-            $file = "dist\index_osr\tesseract\tessdata\$($lang[0]).traineddata"
+            $file = "bundle\index_osr\tesseract\tessdata\$($lang[0]).traineddata"
             Invoke-WebRequest -UseBasicParsing -OutFile $file -Uri "https://github.com/tesseract-ocr/tessdata_fast/raw/$env:TESSDATA_COMMIT/$($lang[0]).traineddata"
             $h = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLower()
             if ($h -ne $lang[1]) { throw "$($lang[0]).traineddata checksum mismatch: $h" }
           }
-          & "dist\index_osr\tesseract\tesseract.exe" --version
-          & "dist\index_osr\tesseract\tesseract.exe" --list-langs
+          & "bundle\index_osr\tesseract\tesseract.exe" --version
+          & "bundle\index_osr\tesseract\tesseract.exe" --list-langs
 
       - name: Multilingual model - download and verify
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          New-Item -ItemType Directory -Force -Path "dist\index_osr\models" | Out-Null
+          New-Item -ItemType Directory -Force -Path "bundle\index_osr\models" | Out-Null
           $files = @{
             "config.json" = "595e4cab2093732efd5dbe084fd5c1826b5eea693b73b4c1fd971672867d2e54";
             "tokenizer.json" = "19f1909063da3cfe3bd83a782381f040dccea475f4816de11116444a73e1b6a1";
             "model.safetensors" = "14b5eb39cb4ce5666da8ad1f3dc6be4346e9b2d601c073302fa0a31bf7943397"
           }
           foreach ($name in $files.Keys) {
-            $file = "dist\index_osr\models\$name"
+            $file = "bundle\index_osr\models\$name"
             Invoke-WebRequest -UseBasicParsing -OutFile $file -Uri "https://huggingface.co/minishlab/potion-multilingual-128M/resolve/$env:MODEL_REV/$name"
             $h = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLower()
             if ($h -ne $files[$name]) { throw "$name checksum mismatch: $h" }
@@ -91,21 +91,21 @@ jobs:
           bun install --frozen-lockfile
           bunx tauri build --no-bundle
           cargo build --release --manifest-path cli/Cargo.toml --bin kensaku-cli
-          Copy-Item "src-tauri\target\release\kensaku.exe" "dist\index_osr\"
-          Copy-Item "cli\target\release\kensaku-cli.exe" "dist\index_osr\"
+          Copy-Item "src-tauri\target\release\kensaku.exe" "bundle\index_osr\"
+          Copy-Item "cli\target\release\kensaku-cli.exe" "bundle\index_osr\"
 
       - name: Smoke test
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          & "dist\index_osr\kensaku-cli.exe" --help | Out-Null
+          & "bundle\index_osr\kensaku-cli.exe" --help | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "kensaku-cli --help failed" }
 
       - name: Licenses and manifest
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          Copy-Item LICENSE "dist\index_osr\LICENSE-index_osr.txt"
+          Copy-Item LICENSE "bundle\index_osr\LICENSE-index_osr.txt"
           @'
           Поиск по документам (index_osr) - сторонние компоненты
           =======================================================
@@ -113,15 +113,15 @@ jobs:
           Tesseract OCR (https://github.com/tesseract-ocr/tesseract), сборка UB Mannheim: Apache License 2.0.
           Языковые данные tessdata_fast (rus, eng): Apache License 2.0.
           Модель potion-multilingual-128M (https://huggingface.co/minishlab/potion-multilingual-128M), MinishLab: MIT.
-          '@ | Set-Content -Encoding utf8 "dist\index_osr\THIRD_PARTY.txt"
-          Get-ChildItem -Recurse "dist\index_osr" -File | ForEach-Object {
-            "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower(), $_.FullName.Substring((Resolve-Path "dist\index_osr").Path.Length + 1)
-          } | Set-Content -Encoding utf8 "dist\index_osr\SHA256SUMS.txt"
-          Compress-Archive -Path "dist\index_osr\*" -DestinationPath "dist\index_osr-windows-x64.zip" -CompressionLevel Optimal
-          $zipHash = (Get-FileHash -Algorithm SHA256 "dist\index_osr-windows-x64.zip").Hash.ToLower()
-          Set-Content -Encoding ascii "dist\index_osr-windows-x64.zip.sha256" "$zipHash  index_osr-windows-x64.zip"
+          '@ | Set-Content -Encoding utf8 "bundle\index_osr\THIRD_PARTY.txt"
+          Get-ChildItem -Recurse "bundle\index_osr" -File | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower(), $_.FullName.Substring((Resolve-Path "bundle\index_osr").Path.Length + 1)
+          } | Set-Content -Encoding utf8 "bundle\index_osr\SHA256SUMS.txt"
+          Compress-Archive -Path "bundle\index_osr\*" -DestinationPath "bundle\index_osr-windows-x64.zip" -CompressionLevel Optimal
+          $zipHash = (Get-FileHash -Algorithm SHA256 "bundle\index_osr-windows-x64.zip").Hash.ToLower()
+          Set-Content -Encoding ascii "bundle\index_osr-windows-x64.zip.sha256" "$zipHash  index_osr-windows-x64.zip"
           Write-Output "bundle sha256: $zipHash"
-          Get-Item "dist\index_osr-windows-x64.zip" | Select-Object Name, Length
+          Get-Item "bundle\index_osr-windows-x64.zip" | Select-Object Name, Length
 
       - name: Publish release
         shell: bash
@@ -129,7 +129,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="osr-build-${{ github.run_number }}"
-          gh release create "$tag" dist/index_osr-windows-x64.zip dist/index_osr-windows-x64.zip.sha256 \
+          gh release create "$tag" bundle/index_osr-windows-x64.zip bundle/index_osr-windows-x64.zip.sha256 \
             --target "${{ github.sha }}" \
             --title "Поиск по документам для CourtMonitor (сборка ${{ github.run_number }})" \
             --notes "Комплект для установщика CourtMonitor. Коммит ${GITHUB_SHA::7}. SHA-256 архива - в файле .sha256."
