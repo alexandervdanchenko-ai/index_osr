@@ -578,8 +578,8 @@ function App() {
   const handleCopyPath = useCallback(
     (path: string) => {
       navigator.clipboard.writeText(path).then(
-        () => flash("Path copied"),
-        () => flash("Couldn't copy the path"),
+        () => flash("Путь скопирован"),
+        () => flash("Не удалось скопировать путь"),
       );
     },
     [flash],
@@ -594,18 +594,18 @@ function App() {
       inputRef.current?.focus();
     };
     return [
-      { id: "images", name: "images", label: "type:image", description: "Screenshots and photos", icon: ImageIcon, run: () => focus("type:image ") },
-      { id: "pdf", name: "pdf", label: "ext:pdf", description: "PDF documents", icon: FileText, run: () => focus("ext:pdf ") },
-      { id: "docs", name: "docs", label: "type:doc", description: "Documents and notes", icon: FileText, run: () => focus("type:doc ") },
-      { id: "code", name: "code", label: "type:code", description: "Source and config files", icon: FileCode, run: () => focus("type:code ") },
-      { id: "media", name: "media", label: "type:media", description: "Audio and video", icon: Film, run: () => focus("type:media ") },
-      { id: "recent", name: "recent", label: "modified:<7d", description: "Changed in the last week", icon: Clock, run: () => focus("modified:<7d ") },
-      { id: "errors", name: "errors", label: "error", description: "Search for error text", icon: TriangleAlert, run: () => focus("error ") },
-      { id: "diagrams", name: "diagrams", label: "diagram", description: "Search for diagrams", icon: FileCode, run: () => focus("diagram ") },
-      { id: "dupes", name: "dupes", label: "review", description: "Find duplicate files and images", icon: Copy, run: () => { setQuery(""); setShowDuplicates(true); } },
-      { id: "reindex", name: "reindex", label: "action", description: "Re-scan watched folders", icon: RefreshCw, run: () => { setQuery(""); handleRunCommand("/reindex"); } },
-      { id: "doctor", name: "doctor", label: "action", description: "Index health report", icon: Stethoscope, run: () => { setQuery(""); handleRunCommand("/doctor"); } },
-      { id: "settings", name: "settings", label: "⌘,", description: "Open Settings", icon: SettingsIcon, run: () => { setQuery(""); openSettings(); } },
+      { id: "images", name: "images", label: "type:image", description: "Скриншоты и фотографии", icon: ImageIcon, run: () => focus("type:image ") },
+      { id: "pdf", name: "pdf", label: "ext:pdf", description: "Документы PDF", icon: FileText, run: () => focus("ext:pdf ") },
+      { id: "docs", name: "docs", label: "type:doc", description: "Документы и заметки", icon: FileText, run: () => focus("type:doc ") },
+      { id: "code", name: "code", label: "type:code", description: "Исходный код и файлы настроек", icon: FileCode, run: () => focus("type:code ") },
+      { id: "media", name: "media", label: "type:media", description: "Аудио и видео", icon: Film, run: () => focus("type:media ") },
+      { id: "recent", name: "recent", label: "modified:<7d", description: "Изменённые за последнюю неделю", icon: Clock, run: () => focus("modified:<7d ") },
+      { id: "errors", name: "errors", label: "error", description: "Поиск текста ошибок", icon: TriangleAlert, run: () => focus("error ") },
+      { id: "diagrams", name: "diagrams", label: "diagram", description: "Поиск схем и диаграмм", icon: FileCode, run: () => focus("diagram ") },
+      { id: "dupes", name: "dupes", label: "просмотр", description: "Найти дубликаты файлов и изображений", icon: Copy, run: () => { setQuery(""); setShowDuplicates(true); } },
+      { id: "reindex", name: "reindex", label: "действие", description: "Заново просканировать папки", icon: RefreshCw, run: () => { setQuery(""); handleRunCommand("/reindex"); } },
+      { id: "doctor", name: "doctor", label: "действие", description: "Отчёт о состоянии индекса", icon: Stethoscope, run: () => { setQuery(""); handleRunCommand("/doctor"); } },
+      { id: "settings", name: "settings", label: "⌘,", description: "Открыть настройки", icon: SettingsIcon, run: () => { setQuery(""); openSettings(); } },
     ];
   }, [handleRunCommand, openSettings]);
 
@@ -979,11 +979,11 @@ function App() {
               y={menu.y}
               onClose={() => setMenu(null)}
               items={[
-                { label: "Open", onSelect: () => handleOpenFile(menu.result.path) },
-                { label: "Preview", onSelect: () => setPreview(menu.result) },
-                { label: "Show in folder", onSelect: () => handleOpenFolder(menu.result.path) },
-                { label: "Copy path", onSelect: () => handleCopyPath(menu.result.path) },
-                { label: "Details", onSelect: () => setDetails(menu.result), separatorBefore: true },
+                { label: "Открыть", onSelect: () => handleOpenFile(menu.result.path) },
+                { label: "Просмотр", onSelect: () => setPreview(menu.result) },
+                { label: "Показать в папке", onSelect: () => handleOpenFolder(menu.result.path) },
+                { label: "Скопировать путь", onSelect: () => handleCopyPath(menu.result.path) },
+                { label: "Сведения", onSelect: () => setDetails(menu.result), separatorBefore: true },
               ] as ContextMenuItem[]}
             />
           )}
@@ -1024,7 +1024,8 @@ function App() {
                 trailing={
                   <button
                     type="button"
-                    title="Settings"
+                    title="Настройки"
+                    aria-label="Настройки"
                     onClick={() => openSettings()}
                     className="btn btn-ghost btn-icon h-9 w-9"
                   >
@@ -1043,12 +1044,12 @@ function App() {
 
               {!isCommandMode && interpretation.length > 0 && (
                 <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-3.5 pb-1.5">
-                  <span className="t-meta mr-1 text-subtle">Understood as</span>
+                  <span className="t-meta mr-1 text-subtle">Распознано как</span>
                   {interpretation.map((c, i) => (
                     <button
                       key={`${c.raw}-${i}`}
                       type="button"
-                      title={`Remove “${c.source}”`}
+                      title={`Убрать «${c.source}»`}
                       onClick={() =>
                         setQuery((prev) =>
                           prev.replace(c.source, "").replace(/\s+/g, " ").trim(),
@@ -1094,7 +1095,7 @@ function App() {
                   <input
                     autoFocus
                     value={saveName}
-                    placeholder="Name this search"
+                    placeholder="Название поиска"
                     onChange={(e) => setSaveName(e.target.value)}
                     onKeyDown={async (e) => {
                       if (e.key !== "Enter") return;
@@ -1137,7 +1138,7 @@ function App() {
                     }}
                     className="btn btn-primary h-8"
                   >
-                    Save
+                    Сохранить
                   </button>
                 </div>
               )}
@@ -1164,6 +1165,7 @@ function App() {
                   <button
                     type="button"
                     onClick={() => setCommandOutput(null)}
+                    aria-label="Закрыть"
                     className="shrink-0 text-subtle transition-colors hover:text-fg"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -1227,21 +1229,21 @@ function App() {
                   ) : hasQuery ? (noResults ? (
                     <div className="flex h-full flex-col items-start justify-end gap-4 px-4 pb-8 select-none">
                       <p className="t-moment rise-in max-w-lg text-muted">
-                        Nothing called <span className="text-fg">{query.trim()}</span>, yet.
+                        По запросу <span className="text-fg">«{query.trim()}»</span> пока ничего не найдено.
                       </p>
                       <div className="flex flex-wrap items-center gap-1.5">
                         {hasActiveFilters(query) && (
-                          <SuggestChip label="Remove filters" onClick={() => setQuery("")} />
+                          <SuggestChip label="Убрать фильтры" onClick={() => setQuery("")} />
                         )}
                         <SuggestChip
-                          label="Try type:pdf"
+                          label="Попробовать type:pdf"
                           onClick={() => {
                             setQuery("type:pdf");
                             inputRef.current?.focus();
                           }}
                         />
                         <SuggestChip
-                          label="Nothing but folders"
+                          label="Только папки"
                           onClick={() => {
                             setQuery("type:dir");
                             inputRef.current?.focus();

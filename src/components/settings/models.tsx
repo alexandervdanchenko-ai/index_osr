@@ -11,7 +11,7 @@ import { Card, Field } from "./kit";
    ship it yet, so the card degrades to a calm unavailable state. */
 
 function mb(bytes: number): string {
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} МБ`;
 }
 
 export function ModelFilesCard() {
@@ -64,15 +64,15 @@ export function ModelFilesCard() {
     prog && prog.total > 0 ? Math.min(100, Math.round((prog.downloaded / prog.total) * 100)) : 0;
 
   return (
-    <Card title="Model files">
+    <Card title="Файлы моделей">
       {/* Directory */}
       {live && status?.dir && (
-        <Field label="Directory" description="Where the model files live on disk.">
+        <Field label="Папка" description="Где на диске хранятся файлы моделей.">
           <div className="flex min-w-0 items-center gap-1">
             <code className="max-w-56 truncate font-mono text-[11px] text-muted">{status.dir}</code>
             <button
               type="button"
-              title="Copy path"
+              title="Скопировать путь"
               onClick={copyDir}
               className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-subtle transition-colors hover:bg-accent-soft hover:text-fg"
             >
@@ -84,7 +84,7 @@ export function ModelFilesCard() {
 
       {/* Totals */}
       {live && (
-        <Field label="On disk" description="Bytes of the neural tier present / expected.">
+        <Field label="На диске" description="Загружено / требуется для нейросетевого уровня.">
           <span className="font-mono text-[11px] text-fg">
             {formatBytes(present)} / {formatBytes(expected)}
           </span>
@@ -111,7 +111,7 @@ export function ModelFilesCard() {
       {/* State (read-only — downloads live in setup). */}
       {!live ? (
         <p className="px-4 py-3.5 text-[12px] leading-[18px] text-muted">
-          Model status unavailable — the backend command is not connected yet.
+          Состояние моделей недоступно: команда серверной части пока не подключена.
         </p>
       ) : status?.downloading ? (
         <div className="space-y-2 border-t border-line px-4 py-3">
@@ -122,38 +122,38 @@ export function ModelFilesCard() {
             />
           </div>
           <div className="flex items-center justify-between gap-3 text-[11px]">
-            <code className="min-w-0 truncate font-mono text-muted">{prog?.file ?? "downloading…"}</code>
+            <code className="min-w-0 truncate font-mono text-muted">{prog?.file ?? "загрузка…"}</code>
             <span className="shrink-0 font-mono text-fg">
               {mb(prog?.downloaded ?? 0)} / {mb(prog?.total || expected)} · {pct}%
             </span>
           </div>
-          <p className="font-mono text-[11px] text-subtle">downloading in setup…</p>
+          <p className="font-mono text-[11px] text-subtle">загрузка в мастере настройки…</p>
         </div>
       ) : status?.error ? (
         <div className="border-t border-line px-4 py-3">
           <p className="break-words text-[11px] text-danger">{status.error}</p>
           <p className="pt-1.5 text-[12px] leading-[18px] text-muted">
-            Use <b>About → Run setup again</b> to retry the download.
+            Чтобы повторить загрузку, откройте <b>О программе → Повторить настройку</b>.
           </p>
         </div>
       ) : status?.ready ? (
         <div className="flex items-center gap-1.5 border-t border-line px-4 py-3">
           <span className="h-1.5 w-1.5 rounded-full bg-success" />
-          <p className="text-[12px] font-medium text-fg">Model files ready</p>
+          <p className="text-[12px] font-medium text-fg">Файлы моделей готовы</p>
         </div>
       ) : (
         <div className="border-t border-line px-4 py-3">
           <p className="text-[12px] leading-[18px] text-muted">
-            Not downloaded. Use <b>About → Run setup again</b> to acquire the optional neural
-            tier.
+            Не загружены. Чтобы получить дополнительный нейросетевой уровень, откройте{" "}
+            <b>О программе → Повторить настройку</b>.
           </p>
         </div>
       )}
 
       {/* Honest note. */}
       <p className="border-t border-line bg-accent-soft px-4 py-2.5 text-[12px] leading-[18px] text-muted">
-        The default semantic tier is built in. These files pre-fetch the optional neural tier for
-        offline use.
+        Базовый смысловой поиск встроен. Эти файлы заранее загружают дополнительный нейросетевой
+        уровень для работы без интернета.
       </p>
     </Card>
   );

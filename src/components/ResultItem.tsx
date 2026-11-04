@@ -34,7 +34,7 @@ export const ResultItem = React.memo<ResultItemProps>(
     const hasThumb = Boolean(thumbSrc) && !thumbFailed;
 
     const meta = result.is_dir
-      ? `Folder · ${formatRelativeTime(result.modified)}`
+      ? `Папка · ${formatRelativeTime(result.modified)}`
       : `${formatBytes(result.file_size)} · ${formatRelativeTime(result.modified)}`;
 
     return (

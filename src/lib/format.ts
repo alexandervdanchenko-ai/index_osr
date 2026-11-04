@@ -1,38 +1,57 @@
 /* Formatting helpers shared across components. Monospace-facing so that
    numbers tabulate cleanly in the status bar, stats and result rows. */
 
+/** Выбирает форму слова по числу: plural(5, "файл", "файла", "файлов"). */
+export function plural(n: number, one: string, few: string, many: string): string {
+  const a = Math.abs(Math.trunc(n));
+  const m10 = a % 10;
+  const m100 = a % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
+/** Число со словом в правильном падеже: pluralN(5, "файл", "файла", "файлов") -> "5 файлов". */
+export function pluralN(n: number, one: string, few: string, many: string): string {
+  return `${formatComma(n)} ${plural(n, one, few, many)}`;
+}
+
 export function formatBytes(bytes: number): string {
-  if (!bytes || bytes <= 0) return "0 B";
+  if (!bytes || bytes <= 0) return "0 Б";
   const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const sizes = ["Б", "КБ", "МБ", "ГБ", "ТБ"];
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
   const v = bytes / Math.pow(k, i);
-  return `${v >= 100 ? Math.round(v) : parseFloat(v.toFixed(1))} ${sizes[i]}`;
+  const num = v >= 100 ? Math.round(v) : parseFloat(v.toFixed(1));
+  return `${String(num).replace(".", ",")} ${sizes[i]}`;
 }
 
 export function formatComma(n: number): string {
-  return n.toLocaleString("en-US");
+  return n.toLocaleString("ru-RU");
 }
 
 export function formatRelativeTime(secs: number): string {
   if (!secs) return "";
   const now = Math.floor(Date.now() / 1000);
   const diff = Math.max(0, now - secs);
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 86400 * 30) return `${Math.floor(diff / 86400)}d ago`;
-  if (diff < 86400 * 365) return `${Math.floor(diff / (86400 * 30))}mo ago`;
-  return new Date(secs * 1000).toLocaleDateString();
+  if (diff < 60) return "только что";
+  if (diff < 3600) return `${Math.floor(diff / 60)} мин назад`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} ч назад`;
+  if (diff < 86400 * 30) {
+    const d = Math.floor(diff / 86400);
+    return `${d} ${plural(d, "день", "дня", "дней")} назад`;
+  }
+  if (diff < 86400 * 365) return `${Math.floor(diff / (86400 * 30))} мес назад`;
+  return new Date(secs * 1000).toLocaleDateString("ru-RU");
 }
 
 export function formatDuration(secs: number): string {
-  if (!secs || secs <= 0) return "0s";
-  if (secs < 60) return `${Math.round(secs)}s`;
+  if (!secs || secs <= 0) return "0 с";
+  if (secs < 60) return `${Math.round(secs)} с`;
   const m = Math.floor(secs / 60);
   const h = Math.floor(m / 60);
-  if (h > 0) return `${h}h ${m % 60}m`;
-  return `${m}m ${Math.floor(secs % 60)}s`;
+  if (h > 0) return `${h} ч ${m % 60} мин`;
+  return `${m} мин ${Math.floor(secs % 60)} с`;
 }
 
 /** Extracts the free-text search terms, dropping `filter:` tokens. */

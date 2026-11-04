@@ -85,14 +85,14 @@ export function PreviewDialog({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div role="dialog" aria-label="Preview" className="elevated overlay-in flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-sheet">
+      <div role="dialog" aria-label="Просмотр" className="elevated overlay-in flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-sheet">
         <div className="flex items-center justify-between gap-4 px-6 pb-4 pt-5">
           <div className="min-w-0">
             <p className="t-lead truncate font-medium text-fg">{result.filename}</p>
             <p className="truncate text-[12px] text-subtle">{displayParent(result.path)}</p>
           </div>
           <button type="button" onClick={onOpen} className="btn btn-primary h-8 shrink-0 px-4">
-            Open
+            Открыть
           </button>
         </div>
         <div className="mx-3 flex min-h-[340px] flex-1 items-center justify-center overflow-auto rounded-panel bg-accent-soft p-6 shadow-[inset_0_0_0_1px_var(--border)]">
@@ -105,13 +105,13 @@ export function PreviewDialog({
           ) : (
             <div className="flex flex-col items-center gap-3 text-muted">
               <span className="relative block h-40 w-52"><TypeTile filename={result.filename} isDir={result.is_dir} /></span>
-              <p className="t-meta text-subtle">{loading ? "Loading preview…" : "No preview for this file type"}</p>
+              <p className="t-meta text-subtle">{loading ? "Загрузка просмотра…" : "Для этого типа файлов просмотр недоступен"}</p>
             </div>
           )}
         </div>
         <div className="flex items-center gap-4 px-6 py-3.5 text-[11px] text-subtle">
-          <span className="flex items-center gap-1.5"><span className="kbd">Space</span> Close</span>
-          <span className="flex items-center gap-1.5"><span className="kbd">↵</span> Open</span>
+          <span className="flex items-center gap-1.5"><span className="kbd">Space</span> Закрыть</span>
+          <span className="flex items-center gap-1.5"><span className="kbd">↵</span> Открыть</span>
         </div>
       </div>
     </div>

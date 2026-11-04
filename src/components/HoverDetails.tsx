@@ -30,7 +30,7 @@ export function HoverDetails({ result }: { result: SearchResult }) {
   }, [result.path, result.is_dir]);
 
   const parts = [
-    result.is_dir ? "Folder" : formatBytes(result.file_size),
+    result.is_dir ? "Папка" : formatBytes(result.file_size),
     details.width && details.height ? `${details.width}×${details.height}` : null,
     formatRelativeTime(result.modified),
   ].filter(Boolean) as string[];

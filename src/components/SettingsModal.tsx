@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   Bot,
   Check,
@@ -31,7 +30,7 @@ import { OcrField } from "./settings/ocr";
 import { StatsForNerds } from "./settings/stats";
 import { DoctorSection } from "./settings/doctor";
 import { ModelFilesCard } from "./settings/models";
-import { formatBytes, formatComma } from "../lib/format";
+import { formatBytes, formatComma, pluralN } from "../lib/format";
 
 export interface SettingsProps {
   onClose: () => void;
@@ -52,40 +51,40 @@ type SectionId =
   | "about";
 
 const SECTIONS: { id: SectionId; label: string; icon: LucideIcon }[] = [
-  { id: "general", label: "General", icon: SlidersHorizontal },
-  { id: "folders", label: "Folders", icon: FolderTree },
-  { id: "exclusions", label: "Exclusions", icon: Filter },
-  { id: "search", label: "Search", icon: Search },
-  { id: "ai", label: "Meaning search", icon: Sparkles },
-  { id: "agents", label: "Agents", icon: Bot },
-  { id: "doctor", label: "Health", icon: Stethoscope },
-  { id: "about", label: "About", icon: Info },
+  { id: "general", label: "Общие", icon: SlidersHorizontal },
+  { id: "folders", label: "Папки", icon: FolderTree },
+  { id: "exclusions", label: "Исключения", icon: Filter },
+  { id: "search", label: "Поиск", icon: Search },
+  { id: "ai", label: "Смысловой поиск", icon: Sparkles },
+  { id: "agents", label: "Агенты", icon: Bot },
+  { id: "doctor", label: "Диагностика", icon: Stethoscope },
+  { id: "about", label: "О программе", icon: Info },
 ];
 
 const SECTION_META: Record<SectionId, { title: string; description: string }> = {
-  general: { title: "General", description: "Appearance, invocation and startup behaviour." },
-  folders: { title: "Folders", description: "Directories watched and indexed on this machine." },
-  exclusions: { title: "Exclusions", description: "Names and extensions kept out of the index." },
-  search: { title: "Search", description: "Ranking, OCR and the query language." },
-  ai: { title: "Smart search", description: "Understands meaning, not just words. Runs on this computer." },
-  beta: { title: "Beta", description: "Optional experiments that are not part of the default search path." },
-  agents: { title: "Agents", description: "Read-only access for MCP clients and the CLI." },
-  stats: { title: "Stats for Nerds", description: "Live telemetry from the running index." },
-  doctor: { title: "Health", description: "Is the index up to date and everything running?" },
-  about: { title: "About", description: "Version, thesis and the reset control." },
+  general: { title: "Общие", description: "Оформление, вызов окна и запуск." },
+  folders: { title: "Папки", description: "Папки на этом компьютере, которые отслеживаются и индексируются." },
+  exclusions: { title: "Исключения", description: "Имена и расширения, которые не попадают в индекс." },
+  search: { title: "Поиск", description: "Ранжирование, OCR и язык запросов." },
+  ai: { title: "Смысловой поиск", description: "Понимает смысл, а не только слова. Работает на этом компьютере." },
+  beta: { title: "Бета", description: "Экспериментальные функции вне основного поиска." },
+  agents: { title: "Агенты", description: "Доступ только для чтения для MCP-клиентов и командной строки." },
+  stats: { title: "Подробная статистика", description: "Текущие показатели работающего индекса." },
+  doctor: { title: "Диагностика", description: "Актуален ли индекс и всё ли работает." },
+  about: { title: "О программе", description: "Версия, справка и сброс." },
 };
 
 const EXCLUSION_PRESETS: Record<string, string[]> = {
-  Developer: [
+  "Разработчик": [
     "node_modules", ".git", "target", "dist", "build", "out",
     ".next", ".nuxt", ".output", ".cache", ".venv", "venv",
     "__pycache__", "vendor", ".gradle", ".idea", ".vscode",
   ],
-  Creative: [
+  "Дизайнер": [
     "node_modules", ".git", ".Trash", ".cache", "Backups",
     "Time Machine", "Library", "lost+found", ".dub", "_archive",
   ],
-  "All-round": [
+  "Универсальный": [
     "node_modules", ".git", "target", "dist", "build", "out",
     ".cache", ".venv", "__pycache__", ".Trash", "Backups",
     "lost+found", ".idea", ".vscode", "Library",
@@ -148,7 +147,7 @@ export function Settings({ onClose, initialSection, onConfigSaved }: SettingsPro
       }
     } catch (err) {
       console.error("Save failed:", err);
-      alert("Failed to save settings: " + err);
+      alert("Не удалось сохранить настройки: " + err);
     } finally {
       setSaving(false);
     }
@@ -157,7 +156,7 @@ export function Settings({ onClose, initialSection, onConfigSaved }: SettingsPro
   return (
     <div className="fade-in absolute inset-0 z-40 flex bg-bg">
       <nav data-tauri-drag-region className="relative z-10 flex w-[200px] shrink-0 flex-col overflow-y-auto px-3 pb-3 pt-5">
-        <p data-tauri-drag-region className="t-title px-3 pb-4 text-fg">Settings</p>
+        <p data-tauri-drag-region className="t-title px-3 pb-4 text-fg">Настройки</p>
         <div className="flex flex-col gap-0.5">
           {SECTIONS.map((s) => {
             const active = section === s.id;
@@ -183,7 +182,7 @@ export function Settings({ onClose, initialSection, onConfigSaved }: SettingsPro
       <main className="surface relative z-10 m-2 ml-0 min-w-0 flex-1 overflow-hidden rounded-sheet">
         <button
           type="button"
-          title="Close (Esc)"
+          title="Закрыть (Esc)" aria-label="Закрыть"
           onClick={onClose}
           className="btn btn-ghost btn-icon absolute right-4 top-4 z-20 h-8 !rounded-full"
         >
@@ -203,15 +202,15 @@ export function Settings({ onClose, initialSection, onConfigSaved }: SettingsPro
           <div className="control pointer-events-auto flex items-center gap-2 rounded-full py-1.5 pl-4 pr-1.5">
             <span className="flex items-center gap-2 pr-2 text-[12px] text-muted">
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${dirty ? "bg-warning" : "bg-success/70"}`} />
-              {dirty ? "Unsaved changes" : saved ? "Saved" : "Up to date"}
+              {dirty ? "Есть несохранённые изменения" : saved ? "Сохранено" : "Изменений нет"}
             </span>
             <button type="button" onClick={() => handleSave(true)} disabled={saving || !config} className="btn btn-ghost h-8 !rounded-full px-3 text-[12px]">
               <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.75} />
-              Save &amp; reindex
+              Сохранить и переиндексировать
             </button>
             <button type="button" onClick={() => handleSave(false)} disabled={saving || !config || !dirty} className="btn btn-primary h-8 !rounded-full px-4 text-[12px]">
               {saved ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" strokeWidth={1.75} />}
-              {saved ? "Saved" : saving ? "Saving" : "Save"}
+              {saved ? "Сохранено" : saving ? "Сохранение…" : "Сохранить"}
             </button>
           </div>
         </footer>
@@ -363,7 +362,7 @@ function GeneralSection({
 
   return (
     <>
-      <Card title="Appearance">
+      <Card title="Оформление">
         <div className="grid grid-cols-2 gap-4 p-4">
           {(["light", "dark"] as const).map((value) => (
             <ThemeSwatch
@@ -381,8 +380,8 @@ function GeneralSection({
         </div>
       </Card>
 
-      <Card title="Invocation">
-        <Field label="Quick shortcut" description="Press it from anywhere to open search. Click, then press a combo to change it. On Linux Wayland, desktops may block global keys: bind a shortcut to the command kensaku --toggle instead.">
+      <Card title="Вызов окна">
+        <Field label="Сочетание клавиш" description="Открывает поиск из любой программы. Чтобы изменить, щёлкните и нажмите новое сочетание. В Linux с Wayland глобальные клавиши могут блокироваться: назначьте сочетание на команду kensaku --toggle.">
           <button
             type="button"
             onClick={() => setCapturing(true)}
@@ -392,11 +391,11 @@ function GeneralSection({
                 : "border-line bg-accent-soft text-fg hover:border-line-strong"
             }`}
           >
-            {capturing ? "press keys…" : config.shortcut}
+            {capturing ? "нажмите клавиши…" : config.shortcut}
           </button>
         </Field>
 
-        <Field label="Maximum results" description="Hard ceiling per query. Lower keeps rendering instant.">
+        <Field label="Максимум результатов" description="Предел на один запрос. Чем меньше, тем быстрее показ.">
           <Stepper
             value={config.max_results}
             min={25}
@@ -407,9 +406,9 @@ function GeneralSection({
         </Field>
 
         <Field
-          label="Start at login"
+          label="Запуск при входе в систему"
           description={
-            autostart === null ? "Unavailable on this system" : "Launch Kensaku when you sign in."
+            autostart === null ? "Недоступно в этой системе" : "Запускать программу при входе в систему."
           }
         >
           <Switch
@@ -420,7 +419,7 @@ function GeneralSection({
         </Field>
         {autostartError && (
           <p className="break-words border-t border-line px-4 py-2 font-mono text-[11px] text-danger">
-            Could not update login item: {autostartError}
+            Не удалось изменить автозапуск: {autostartError}
           </p>
         )}
       </Card>
@@ -459,9 +458,9 @@ function FoldersSection({
 
   return (
     <>
-      <Card title="Watched directories">
+      <Card title="Отслеживаемые папки">
         {config.watched_dirs.length === 0 && (
-          <p className="px-4 py-3 text-[11px] text-subtle">Nothing watched yet.</p>
+          <p className="px-4 py-3 text-[11px] text-subtle">Папки пока не добавлены.</p>
         )}
         {config.watched_dirs.map((dir) => (
           <div
@@ -476,7 +475,7 @@ function FoldersSection({
             </div>
             <button
               type="button"
-              title={`Stop watching ${dir}`}
+              title={`Перестать отслеживать ${dir}`}
               onClick={() =>
                 setConfig((c) =>
                   c ? { ...c, watched_dirs: c.watched_dirs.filter((d) => d !== dir) } : c,
@@ -511,14 +510,14 @@ function FoldersSection({
           }}
           className="mx-4 my-2.5 flex h-16 items-center justify-center rounded-control border border-dashed border-line text-[11px] text-subtle transition-colors duration-150"
         >
-          Drop folders here to add them for watching
+          Перетащите сюда папки, чтобы добавить их
         </div>
 
         <div className="flex gap-1.5 border-t border-line p-3">
           <input
             type="text"
             value={input}
-            placeholder="/absolute/path/to/directory"
+            placeholder="Полный путь к папке, например C:\Документы"
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addDir()}
             spellCheck={false}
@@ -530,12 +529,12 @@ function FoldersSection({
             className="btn btn-secondary h-8 px-3 text-[12px]"
           >
             <Plus className="h-3.5 w-3.5" />
-            Add
+            Добавить
           </button>
         </div>
         {stats && stats.index.files > 0 && (
           <p className="border-t border-line px-4 py-2 font-mono text-[11px] text-subtle">
-            {formatComma(stats.index.files)} files indexed across {formatComma(stats.index.dirs)} folders
+            В индексе {pluralN(stats.index.files, "файл", "файла", "файлов")} в {pluralN(stats.index.dirs, "папке", "папках", "папках")}
           </p>
         )}
       </Card>
@@ -562,7 +561,7 @@ function ExclusionsSection({
 
   return (
     <>
-      <Card title="Presets">
+      <Card title="Готовые наборы">
         <div className="flex flex-wrap gap-1.5 px-4 py-3">
           {Object.keys(EXCLUSION_PRESETS).map((p) => (
             <button
@@ -574,17 +573,17 @@ function ExclusionsSection({
               {p}
             </button>
           ))}
-          <span className="self-center text-[11px] text-subtle">replaces the list below</span>
+          <span className="self-center text-[11px] text-subtle">заменяет список ниже</span>
         </div>
       </Card>
 
-      <Card title="Excluded directory names">
+      <Card title="Исключённые имена папок">
         <div className="flex flex-wrap gap-1.5 px-4 py-3">
           {config.excluded_dirs.map((d) => (
             <button
               key={d}
               type="button"
-              title={`Remove ${d}`}
+              title={`Удалить ${d}`}
               onClick={() => removeDir(d)}
               className="group flex h-6 items-center gap-1.5 rounded-full bg-accent-soft px-2.5 font-mono text-[11px] text-muted transition-colors hover:text-danger"
             >
@@ -596,7 +595,7 @@ function ExclusionsSection({
         <div className="border-t border-line p-3">
           <input
             value={dirInput}
-            placeholder="directory name, e.g. bundle_cache — Enter to add"
+            placeholder="имя папки, например Архив; Enter - добавить"
             onChange={(e) => setDirInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && dirInput.trim()) {
@@ -613,13 +612,13 @@ function ExclusionsSection({
         </div>
       </Card>
 
-      <Card title="Excluded extensions">
+      <Card title="Исключённые расширения">
         <div className="flex flex-wrap gap-1.5 px-4 py-3">
           {config.excluded_extensions.map((x) => (
             <button
               key={x}
               type="button"
-              title={`Remove ${x}`}
+              title={`Удалить ${x}`}
               onClick={() =>
                 setConfig((c) =>
                   c ? { ...c, excluded_extensions: c.excluded_extensions.filter((e) => e !== x) } : c,
@@ -635,7 +634,7 @@ function ExclusionsSection({
         <div className="border-t border-line p-3">
           <input
             value={extInput}
-            placeholder="extension, e.g. .bin — Enter to add"
+            placeholder="расширение, например .bin; Enter - добавить"
             onChange={(e) => setExtInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && extInput.trim()) {
@@ -654,10 +653,10 @@ function ExclusionsSection({
         </div>
       </Card>
 
-      <Card title="Hidden files">
+      <Card title="Скрытые файлы">
         <Field
-          label="Skip hidden files"
-          description="Skip files and folders whose name starts with a dot. Turn off to index hidden files."
+          label="Пропускать скрытые файлы"
+          description="Не индексировать файлы и папки, имя которых начинается с точки. Выключите, чтобы индексировать их."
         >
           <Switch
             checked={config.skip_hidden ?? true}
@@ -674,16 +673,16 @@ function ExclusionsSection({
 /* ---------------------------------------------------------------- */
 
 const CHEATSHEET: [string, string][] = [
-  ["type:image,dir,doc,code,media", "Class of file"],
-  ["ext:png", "Restrict by extension"],
-  ['in:"~/Projects"', "Within folder, recursively"],
-  ["modified:<7d", "Changed recently"],
-  ["size:>2mb", "Size threshold"],
-  ["-ext:log", "Negate any filter"],
-  [">reindex", "Rebuild the full index"],
-  [">doctor", "Health diagnostics"],
-  [">model", "Embedding model status"],
-  [">add folder", "Register a watch path"],
+  ["type:image,dir,doc,code,media", "Тип файла"],
+  ["ext:png", "По расширению"],
+  ['in:"~/Projects"', "В папке и вложенных"],
+  ["modified:<7d", "Изменён недавно"],
+  ["size:>2mb", "Порог размера"],
+  ["-ext:log", "Отрицание фильтра"],
+  [">reindex", "Перестроить весь индекс"],
+  [">doctor", "Диагностика"],
+  [">model", "Состояние модели"],
+  [">add folder", "Добавить папку"],
 ];
 
 function SearchSection({
@@ -695,10 +694,10 @@ function SearchSection({
 }) {
   return (
     <>
-      <Card title="Results">
+      <Card title="Результаты">
         <Field
-          label="Show thumbnails"
-          description="Previews for images and PDFs (first page). PDFs need poppler, e.g. brew install poppler. Without it, PDFs show their file icon. Turn off to skip previews."
+          label="Показывать миниатюры"
+          description="Миниатюры изображений и PDF (первая страница). Для PDF нужен poppler, без него показывается значок файла. Выключите, чтобы не строить миниатюры."
         >
           <Switch
             checked={config.show_thumbnails ?? true}
@@ -706,10 +705,10 @@ function SearchSection({
           />
         </Field>
         <Field
-          label="Result layout"
-          description="Grid shows image cards. List shows one file per row, with size and age."
+          label="Вид результатов"
+          description="Плитка - карточки с изображениями. Список - по файлу в строке, с размером и датой."
         >
-          <div role="radiogroup" aria-label="Result layout" className="pill-group">
+          <div role="radiogroup" aria-label="Вид результатов" className="pill-group">
             {(["grid", "list"] as const).map((v) => {
               const active = (config.results_view ?? "grid") === v;
               return (
@@ -719,9 +718,9 @@ function SearchSection({
                   role="radio"
                   aria-checked={active}
                   onClick={() => setConfig((c) => (c ? { ...c, results_view: v } : c))}
-                  className="pill capitalize"
+                  className="pill"
                 >
-                  {v}
+                  {v === "grid" ? "Плитка" : "Список"}
                 </button>
               );
             })}
@@ -729,10 +728,10 @@ function SearchSection({
         </Field>
       </Card>
 
-      <Card title="Ranking">
+      <Card title="Ранжирование">
         <Field
-          label="Semantic search"
-          description="Static embeddings, ~0.1 ms per query, fused with BM25 via RRF."
+          label="Смысловой поиск"
+          description="Статические эмбеддинги, ~0,1 мс на запрос, объединяются с BM25 через RRF."
         >
           <Switch
             checked={config.semantic_enabled ?? true}
@@ -742,10 +741,10 @@ function SearchSection({
         <OcrField config={config} setConfig={setConfig} />
       </Card>
 
-      <Card title="Background indexing">
+      <Card title="Фоновая индексация">
         <Field
-          label="Crawl mode"
-          description="Balanced uses idle I/O and CPU priority. Eco also paces work on battery. Full speed keeps normal priority."
+          label="Режим обхода"
+          description="«Сбалансированный» - низкий приоритет диска и процессора. «Экономный» - ещё и замедляется при работе от батареи. «Максимальная скорость» - обычный приоритет."
         >
           <select
             value={config.crawl_mode ?? "full"}
@@ -764,14 +763,14 @@ function SearchSection({
             }
             className="field h-8"
           >
-            <option value="full">Full speed</option>
-            <option value="balanced">Balanced</option>
-            <option value="eco">Eco</option>
+            <option value="full">Максимальная скорость</option>
+            <option value="balanced">Сбалансированный</option>
+            <option value="eco">Экономный</option>
           </select>
         </Field>
         <Field
-          label="Pause indexing"
-          description="Stops reading new files. Renames and deletes still update the index while paused."
+          label="Приостановить индексацию"
+          description="Новые файлы не читаются. Переименования и удаления по-прежнему учитываются."
         >
           <Switch
             checked={config.pause_indexing ?? false}
@@ -782,18 +781,18 @@ function SearchSection({
         </Field>
       </Card>
 
-      <Card title="Aliases">
+      <Card title="Синонимы">
         <div className="space-y-2 p-4">
           <p className="text-[12px] leading-[18px] text-muted">
-            Personal vocabulary: typing the term also matches any of its expansions
-            (case-insensitive, OR semantics).
+            Личный словарь: по слову находятся и все его варианты
+            (без учёта регистра, достаточно любого из вариантов).
           </p>
           {(config.aliases ?? []).map((alias, i) => (
             <div key={i} className="flex items-center gap-2">
               <input
                 type="text"
                 value={alias.term}
-                placeholder="term"
+                placeholder="слово"
                 onChange={(e) =>
                   setConfig((c) => {
                     if (!c) return c;
@@ -808,7 +807,7 @@ function SearchSection({
               <input
                 type="text"
                 value={alias.expansions.join(", ")}
-                placeholder="cv, curriculum"
+                placeholder="иск, исковое заявление"
                 onChange={(e) =>
                   setConfig((c) => {
                     if (!c) return c;
@@ -824,7 +823,7 @@ function SearchSection({
               />
               <button
                 type="button"
-                title="Remove alias"
+                title="Удалить синоним"
                 onClick={() =>
                   setConfig((c) =>
                     c ? { ...c, aliases: (c.aliases ?? []).filter((_, j) => j !== i) } : c,
@@ -845,12 +844,12 @@ function SearchSection({
             }
             className="flex h-7 items-center gap-1 rounded-control border border-line px-2.5 text-[12px] text-muted transition-colors hover:border-line-strong hover:text-fg"
           >
-            <Plus className="h-3 w-3" /> Add alias
+            <Plus className="h-3 w-3" /> Добавить синоним
           </button>
         </div>
       </Card>
 
-      <Card title="Query language">
+      <Card title="Язык запросов">
         <div className="grid grid-cols-2 gap-x-8 px-4 py-2.5">
           {CHEATSHEET.map(([token, desc], idx) => (
             <div
@@ -878,7 +877,7 @@ function AiSection({ config, setConfig }: { config: KensakuConfig; setConfig: Re
   const [reembedState, setReembedState] = useState<"idle" | "pending">("idle");
 
   const modelId =
-    stats?.runtime?.model_id || config.semantic_model || "reported when the backend lands";
+    stats?.runtime?.model_id || config.semantic_model || "появится после подключения";
   const queueDepth = stats?.ingestion?.embed_queue_depth ?? 0;
 
   const reembed = async () => {
@@ -893,31 +892,31 @@ function AiSection({ config, setConfig }: { config: KensakuConfig; setConfig: Re
 
   return (
     <>
-      <Card title="Embedding model">
-        <Field label="Model" description="Static embeddings — no GPU, no network.">
+      <Card title="Модель эмбеддингов">
+        <Field label="Модель" description="Статические эмбеддинги: без видеокарты и без интернета.">
           <span className="max-w-48 truncate font-mono text-[11px] text-fg">{modelId}</span>
         </Field>
-        <Field label="Dimensions" description="Reported by the model manifest.">
-          <span className="font-mono text-[11px] text-muted">{live ? "—" : "—"}</span>
+        <Field label="Размерность" description="По данным описания модели.">
+          <span className="font-mono text-[11px] text-muted">{live ? "-" : "-"}</span>
         </Field>
-        <Field label="Vector tier on disk" description="Embedding vectors stored inside metadata.db.">
+        <Field label="Векторы на диске" description="Векторы хранятся в metadata.db.">
           <span className="font-mono text-[11px] text-muted">{formatBytes(stats?.index?.vector_bytes ?? 0)}</span>
         </Field>
-        <Field label="Readiness" description="Units searchable in RRF fusion right now.">
+        <Field label="Готовность" description="Доступны ли фрагменты для поиска прямо сейчас.">
           <span
             className={`font-mono text-[11px] ${
               stats?.runtime?.semantic_ready ? "text-success" : "text-warning"
             }`}
           >
-            {stats?.runtime?.semantic_ready ? "ready" : live ? "warming up" : "pending backend"}
+            {stats?.runtime?.semantic_ready ? "готово" : live ? "подготовка" : "ожидание"}
           </span>
         </Field>
       </Card>
 
-      <Card title="Embedding table">
+      <Card title="Таблица эмбеддингов">
         <Field
-          label="Use f32 table"
-          description="Keep the static embedding table in f32 instead of the compact i8 table. For quality comparisons only."
+          label="Таблица f32"
+          description="Хранить таблицу в f32 вместо компактной i8. Только для сравнения качества."
         >
           <Switch
             checked={config.semantic_f32_table ?? false}
@@ -926,10 +925,10 @@ function AiSection({ config, setConfig }: { config: KensakuConfig; setConfig: Re
         </Field>
       </Card>
 
-      <Card title="Embed queue">
+      <Card title="Очередь обработки">
         <div className="space-y-2 p-4">
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-muted">Queued units</span>
+            <span className="text-muted">Фрагментов в очереди</span>
             <span className="font-mono text-fg">{formatComma(queueDepth)}</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-accent-soft">
@@ -940,7 +939,7 @@ function AiSection({ config, setConfig }: { config: KensakuConfig; setConfig: Re
           </div>
           <div className="flex items-center justify-between pt-1">
             <span className="font-mono text-[11px] text-subtle">
-              {live ? "polled every 2 s" : "get_stats pending on the backend"}
+              {live ? "обновляется каждые 2 с" : "ожидание get_stats"}
             </span>
             <button
               type="button"
@@ -948,7 +947,7 @@ function AiSection({ config, setConfig }: { config: KensakuConfig; setConfig: Re
               className="flex h-7 items-center gap-1.5 rounded-control border border-line px-2.5 text-[11px] text-fg transition-colors hover:border-line-strong"
             >
               <RefreshCw className="h-3 w-3" />
-              {reembedState === "pending" ? "Queued…" : "Re-embed all"}
+              {reembedState === "pending" ? "В очереди…" : "Обработать заново"}
             </button>
           </div>
         </div>
@@ -976,13 +975,13 @@ const CLI_EXAMPLES = [
 ];
 
 const MCP_TOOLS: [string, string][] = [
-  ["health_check", "daemon · db · index · model"],
-  ["search", "query, page_size ≤ 50, cursor, mode, filters"],
+  ["health_check", "служба · БД · индекс · модель"],
+  ["search", "query, page_size ≤ 50, cursor, mode, фильтры"],
   ["read_snippet", "path, query?, max_tokens ≤ 1024"],
-  ["index_state", "counts, phase, queue, freshness"],
-  ["regex_search", "bounded pattern, page_size, cursor"],
-  ["find_symbol", "symbol name, language?, page_size ≤ 50"],
-  ["reindex", "opt-in only; requires daemon"],
+  ["index_state", "счётчики, этап, очередь, актуальность"],
+  ["regex_search", "ограниченный шаблон, page_size, cursor"],
+  ["find_symbol", "имя символа, language?, page_size ≤ 50"],
+  ["reindex", "только если включено; нужна служба"],
 ];
 
 /** One copyable mono row — command text with a trailing copy button. */
@@ -1002,7 +1001,7 @@ function CopyRow({
       </code>
       <button
         type="button"
-        title="Copy"
+        title="Скопировать"
         onClick={() => {
           navigator.clipboard.writeText(text);
           onCopied();
@@ -1029,13 +1028,13 @@ function BetaSection({
   void config;
   void setConfig;
   return (
-    <Card title="Visual search">
+    <Card title="Поиск по изображениям">
       <div className="flex items-center justify-between gap-4 px-4 py-3 opacity-50">
         <div className="min-w-0">
-          <p className="text-[12px] font-medium text-fg">Visual search</p>
-          <p className="text-[12px] leading-[18px] text-muted">Find images by what they show. Coming later.</p>
+          <p className="text-[12px] font-medium text-fg">Поиск по изображениям</p>
+          <p className="text-[12px] leading-[18px] text-muted">Поиск картинок по тому, что на них изображено. Появится позже.</p>
         </div>
-        <span className="shrink-0 rounded-small border border-line px-2 py-0.5 text-[12px] text-muted">Coming later</span>
+        <span className="shrink-0 rounded-small border border-line px-2 py-0.5 text-[12px] text-muted">Позже</span>
       </div>
     </Card>
   );
@@ -1073,18 +1072,18 @@ function AgentConnectCard() {
   };
 
   const statusLabel = (status: ClientStatus): string => {
-    if (status.configured) return "Connected";
-    if (status.installed) return "Found";
-    if (status.config_path) return "Not set up";
-    return "Not detected";
+    if (status.configured) return "Подключён";
+    if (status.installed) return "Найден";
+    if (status.config_path) return "Не настроен";
+    return "Не найден";
   };
 
   return (
-    <Card title="One-click connect">
+    <Card title="Подключение в один щелчок">
       <div>
         {statuses.length === 0 && (
           <p className="px-4 py-3 text-[12px] text-muted">
-            Detecting installed MCP clients…
+            Поиск установленных MCP-клиентов…
           </p>
         )}
         {statuses.map((status) => (
@@ -1095,7 +1094,7 @@ function AgentConnectCard() {
             <div className="min-w-0">
               <p className="text-[12px] font-medium text-fg">{status.name}</p>
               <p className="truncate font-mono text-[11px] text-subtle">
-                {status.config_path ?? "config location not found"}
+                {status.config_path ?? "файл настроек не найден"}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -1115,7 +1114,7 @@ function AgentConnectCard() {
                   onClick={() => void install(status.id)}
                   className="flex h-6 items-center rounded-control border border-line px-2 text-[11px] text-fg transition-colors hover:border-line-strong disabled:opacity-50"
                 >
-                  {busy === status.id ? "Adding…" : "Add Kensaku"}
+                  {busy === status.id ? "Добавление…" : "Подключить"}
                 </button>
               )}
             </div>
@@ -1126,8 +1125,8 @@ function AgentConnectCard() {
         <p className="border-t border-line px-4 py-2 text-[12px] text-muted">{notice}</p>
       )}
       <p className="border-t border-line px-4 py-2.5 text-[12px] leading-[18px] text-muted">
-        Adding Kensaku merges one entry into the client's config file (a backup is left next to
-        it). Restart the client afterwards. Manual JSON stays available above.
+        При подключении в файл настроек клиента добавляется одна запись (рядом сохраняется
+        резервная копия). Затем перезапустите клиент. Настройку вручную через JSON см. ниже.
       </p>
     </Card>
   );
@@ -1151,7 +1150,7 @@ function AgentsSection({
   return (
     <>
       <p className="pb-3 text-[12px] leading-[18px] text-muted">
-        Let agents search this index. Read-only by default, local, no network.
+        Разрешите ИИ-агентам искать по этому индексу. По умолчанию только чтение, локально, без интернета.
       </p>
 
       <AgentConnectCard />
@@ -1160,10 +1159,10 @@ function AgentsSection({
       <Card title="Model Context Protocol">
         <div className="px-4 py-3">
           <p className="text-[12px] leading-[18px] text-muted">
-            Point Claude Code, Cursor, or any MCP client at the{" "}
-            <code className="font-mono text-[11px] text-fg">kensaku-cli</code> binary. It reuses
-            this app's data directory: it attaches to the daemon when one is running, otherwise it
-            reads the index read-only.
+            Укажите Claude Code, Cursor или другому MCP-клиенту программу{" "}
+            <code className="font-mono text-[11px] text-fg">kensaku-cli</code>. Она использует
+            папку данных этого приложения: подключается к работающей службе, а если службы нет,
+            читает индекс в режиме только для чтения.
           </p>
         </div>
         <div className="relative border-t border-line bg-accent-soft p-3 pr-10">
@@ -1172,7 +1171,7 @@ function AgentsSection({
           </pre>
           <button
             type="button"
-            title="Copy config JSON"
+            title="Скопировать JSON настроек"
             onClick={() => {
               navigator.clipboard.writeText(MCP_CONFIG);
               setConfigCopied(true);
@@ -1184,15 +1183,15 @@ function AgentsSection({
           </button>
         </div>
         <p className="border-t border-line px-4 py-2.5 text-[12px] leading-[18px] text-muted">
-          If <code className="font-mono text-[11px] text-fg">kensaku-cli</code> isn't on your
-          PATH, use the absolute path to the binary —{" "}
-          <code className="font-mono text-[11px] text-fg">~/.cargo/bin/kensaku-cli</code> or{" "}
+          Если <code className="font-mono text-[11px] text-fg">kensaku-cli</code> нет в PATH,
+          укажите полный путь к программе, например{" "}
+          <code className="font-mono text-[11px] text-fg">~/.cargo/bin/kensaku-cli</code> или{" "}
           <code className="font-mono text-[11px] text-fg">target/release/kensaku-cli</code>.
         </p>
       </Card>
 
       {/* CLI */}
-      <Card title="Command line">
+      <Card title="Командная строка">
         <div>
           {CLI_EXAMPLES.map((cmd) => (
             <CopyRow
@@ -1204,13 +1203,13 @@ function AgentsSection({
           ))}
         </div>
         <p className="border-t border-line px-4 py-2.5 text-[12px] leading-[18px] text-muted">
-          When the daemon is running the MCP server forwards queries to it and never opens the
-          database itself. Without a daemon it falls back to the read-only local index.
+          Когда служба запущена, MCP-сервер передаёт запросы ей и сам базу не открывает.
+          Без службы используется локальный индекс в режиме только для чтения.
         </p>
       </Card>
 
       {/* Tools */}
-      <Card title="MCP tools">
+      <Card title="Инструменты MCP">
         <div className="px-4 py-1.5">
           {MCP_TOOLS.map(([name, args]) => (
             <div
@@ -1229,10 +1228,10 @@ function AgentsSection({
       </Card>
 
       {/* Write access */}
-      <Card title="Write access">
+      <Card title="Доступ на запись">
         <Field
-          label="Allow MCP reindex"
-          description="Adds an opt-in reindex tool for agents. Requires the daemon; restart MCP clients after changing this."
+          label="Разрешить переиндексацию через MCP"
+          description="Добавляет агентам инструмент reindex. Нужна работающая служба; после изменения перезапустите MCP-клиенты."
         >
           <Switch
             checked={config.mcp_allow_reindex ?? false}
@@ -1244,11 +1243,11 @@ function AgentsSection({
       </Card>
 
       {/* Security */}
-      <Card title="Security">
+      <Card title="Безопасность">
         <p className="p-4 text-[12px] leading-[18px] text-muted">
-          Read-only by default. <code className="font-mono text-[11px] text-fg">reindex</code> is
-          off unless enabled above. No shell and no network. Honors your watched folders,
-          exclusions and the daemon's opt-in check.
+          По умолчанию только чтение. <code className="font-mono text-[11px] text-fg">reindex</code>
+          выключен, пока его не включат выше. Нет доступа к командной оболочке и интернету.
+          Учитываются отслеживаемые папки, исключения и разрешения службы.
         </p>
       </Card>
     </>
@@ -1359,14 +1358,14 @@ function ResetDialog({ onClose }: { onClose: () => void }) {
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Reset Kensaku"
+        aria-label="Сброс программы"
         className="overlay-in elevated w-full max-w-[400px] overflow-hidden border-danger/30"
       >
         <div className="flex items-center justify-between border-b border-line bg-accent-soft px-4 py-2.5">
-          <p className="text-[11px] font-medium text-danger">Danger zone</p>
+          <p className="text-[11px] font-medium text-danger">Опасная зона</p>
           <button
             type="button"
-            title="Cancel (Esc)"
+            title="Отмена (Esc)"
             onClick={onClose}
             className="flex h-6 w-6 items-center justify-center rounded text-muted transition-colors hover:bg-elevated hover:text-fg"
           >
@@ -1381,15 +1380,15 @@ function ResetDialog({ onClose }: { onClose: () => void }) {
           }}
         >
           <div className="p-4">
-            <p className="text-[13px] font-semibold text-fg">Reset Kensaku</p>
+            <p className="text-[13px] font-semibold text-fg">Сброс программы</p>
             <p className="pt-0.5 text-[12px] leading-[18px] text-muted">
-              This will delete your index and settings and restart Kensaku.
+              Индекс и настройки будут удалены, программа перезапустится.
             </p>
           </div>
 
           <div className="px-4 pb-4">
             <label htmlFor="reset-confirm" className="eyebrow pb-1.5 block">
-              Type <span className="font-mono normal-case text-danger">RESET</span> to confirm
+              Для подтверждения введите <span className="font-mono normal-case text-danger">RESET</span>
             </label>
             <input
               id="reset-confirm"
@@ -1413,14 +1412,14 @@ function ResetDialog({ onClose }: { onClose: () => void }) {
               onClick={onClose}
               className="flex h-8 items-center rounded-control border border-line px-3 text-[12px] text-fg transition-colors hover:border-line-strong"
             >
-              Cancel
+              Отмена
             </button>
             <button
               type="submit"
               disabled={!matches || running}
               className="flex h-8 items-center rounded-control bg-danger px-3 text-[12px] font-medium text-bg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {running ? "Resetting…" : "Reset and restart"}
+              {running ? "Сброс…" : "Сбросить и перезапустить"}
             </button>
           </div>
         </form>
@@ -1433,7 +1432,6 @@ function AboutSection() {
   const resetPending = useResetPending();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [version, setVersion] = useState<string>("…");
-  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1442,43 +1440,32 @@ function AboutSection() {
         if (!cancelled) setVersion(v);
       })
       .catch(() => {
-        if (!cancelled) setVersion("unknown");
+        if (!cancelled) setVersion("неизвестна");
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const checkForUpdates = async () => {
-    setChecking(true);
-    try {
-      await openUrl("https://github.com/yjid/kensaku/releases/latest");
-    } catch {
-      /* fall back to nothing; the link is also in the docs */
-    } finally {
-      setChecking(false);
-    }
-  };
-
   return (
     <>
       {resetPending && (
         <div className="flex items-center gap-2 rounded-control border border-warning/40 bg-elevated px-4 py-2.5">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
-          <p className="text-[12px] text-muted">A reset is pending and will finish on next launch.</p>
+          <p className="text-[12px] text-muted">Сброс запланирован и завершится при следующем запуске.</p>
         </div>
       )}
       {resetPending && <div className="h-3" />}
 
-      <Card title="Version">
+      <Card title="Версия">
         <div className="flex items-center justify-between p-4">
           <div>
             <p className="text-[15px] font-semibold text-fg">
-              Kensaku <span className="font-normal text-muted">検索</span>
+              Поиск по документам
             </p>
             <p className="font-mono text-[11px] text-subtle">{version}</p>
             <p className="mt-1 text-[11px] text-subtle">
-              Auto-update isn't wired up yet — updates are manual.
+              Автообновление пока не подключено, обновление выполняется вручную.
             </p>
           </div>
           <div className="flex items-center gap-1.5">
@@ -1493,53 +1480,45 @@ function AboutSection() {
           </div>
         </div>
         <div className="border-t border-line px-4 py-3">
-          <button
-            type="button"
-            onClick={checkForUpdates}
-            disabled={checking}
-            className="btn btn-secondary h-8 !rounded-control"
-          >
-            {checking ? "Opening…" : "Check for updates"}
-          </button>
-          <span className="ml-3 text-[11px] text-subtle">
-            Opens the latest release page in your browser.
+          <span className="text-[11px] text-subtle">
+            Обновляется вместе с программой «Мониторинг судебных дел». Сама программа в интернет не обращается.
           </span>
         </div>
       </Card>
 
-      <Card title="How to use Kensaku">
+      <Card title="Как пользоваться программой">
         <div className="space-y-2 p-4 text-[12px] leading-[18px] text-muted">
-          <p className="text-fg">A few simple tricks make search feel instant:</p>
+          <p className="text-fg">Несколько приёмов для быстрого поиска:</p>
           <ul className="list-disc space-y-1 pl-5">
-            <li><b>Tab</b> shows or hides the details pane next to results.</li>
-            <li><b>Aliases</b> let a word like “resume” also find “cv” and “curriculum”.</li>
-            <li><b>Filters</b> such as <code className="font-mono text-[11px] text-fg">type:pdf</code>, <code className="font-mono text-[11px] text-fg">ext:png</code>, <code className="font-mono text-[11px] text-fg">in:~/Projects</code>, <code className="font-mono text-[11px] text-fg">modified:&lt;7d</code> narrow results.</li>
-            <li><b>/</b> opens the command menu for quick actions like <code className="font-mono text-[11px] text-fg">/dupes</code>, <code className="font-mono text-[11px] text-fg">/doctor</code>, <code className="font-mono text-[11px] text-fg">/settings</code>.</li>
-            <li><b>@</b> mentions a folder to search inside it.</li>
-            <li><b>Sort</b> and <b>saved searches</b> keep your best queries one click away.</li>
-            <li><b>Pin</b> important files so they stay on the home screen.</li>
-            <li><b>OCR</b> reads text inside images and screenshots.</li>
+            <li><b>Tab</b> показывает или скрывает панель сведений рядом с результатами.</li>
+            <li><b>Синонимы</b> позволяют по слову «иск» находить и «исковое заявление».</li>
+            <li><b>Фильтры</b>, например <code className="font-mono text-[11px] text-fg">type:pdf</code>, <code className="font-mono text-[11px] text-fg">ext:png</code>, <code className="font-mono text-[11px] text-fg">in:~/Projects</code>, <code className="font-mono text-[11px] text-fg">modified:&lt;7d</code>, сужают выдачу.</li>
+            <li><b>/</b> открывает меню команд для быстрых действий: <code className="font-mono text-[11px] text-fg">/dupes</code>, <code className="font-mono text-[11px] text-fg">/doctor</code>, <code className="font-mono text-[11px] text-fg">/settings</code>.</li>
+            <li><b>@</b> с именем папки - поиск внутри этой папки.</li>
+            <li><b>Сортировка</b> и <b>сохранённые поиски</b> держат нужные запросы под рукой.</li>
+            <li><b>Закрепите</b> важные файлы, чтобы они оставались на главном экране.</li>
+            <li><b>OCR</b> распознаёт текст на изображениях и скриншотах.</li>
           </ul>
-          <p>Everything stays on your computer. Nothing is sent anywhere.</p>
+          <p>Все данные остаются на вашем компьютере и никуда не отправляются.</p>
         </div>
       </Card>
 
-      <Card title="Design thesis">
+      <Card title="Идея">
         <div className="p-4 text-center">
           <p className="font-serif text-[15px] italic leading-[18px] text-muted">
-            “A warm, local, read-only index of your machine that answers in under 15 ms —
-            for you, and for every agent you use.”
+            «Локальный индекс вашего компьютера только для чтения, который отвечает быстрее
+            чем за 15 мс - вам и всем ИИ-агентам, с которыми вы работаете.»
           </p>
         </div>
       </Card>
 
-      <Card title="Setup">
+      <Card title="Настройка">
         <div className="flex items-center justify-between gap-4 p-4">
           <div className="min-w-0">
-            <p className="text-[13px] font-medium text-fg">Run setup again</p>
+            <p className="text-[13px] font-medium text-fg">Повторить настройку</p>
             <p className="line-clamp-2 pt-0.5 text-[12px] leading-[18px] text-muted">
-              Re-run the guided first-run flow (folders, preferences, optional packs, first scan).
-              Your index and config are preserved; setup markers reset.
+              Заново пройти мастер первой настройки (папки, параметры, дополнительные пакеты, первое
+              сканирование). Индекс и настройки сохранятся.
             </p>
           </div>
           <button
@@ -1554,7 +1533,7 @@ function AboutSection() {
             }}
             className="h-8 shrink-0 rounded-control border border-line px-3 text-[11px] font-medium text-fg transition-colors hover:border-line-strong"
           >
-            Run setup again…
+            Повторить настройку…
           </button>
         </div>
       </Card>
@@ -1562,15 +1541,15 @@ function AboutSection() {
       {/* Danger zone — visually distinct but calm: danger hairline, no fills. */}
       <div>
         <p className="pb-2 text-[11px] font-medium text-danger">
-          Danger zone
+          Опасная зона
         </p>
         <div className="overflow-hidden rounded-panel border border-danger/30 bg-elevated">
           <div className="flex items-center justify-between gap-4 p-4">
             <div className="min-w-0">
-              <p className="text-[13px] font-medium text-fg">Reset Kensaku</p>
+              <p className="text-[13px] font-medium text-fg">Сброс программы</p>
               <p className="line-clamp-2 pt-0.5 text-[12px] leading-[18px] text-muted">
-                Deletes the index, metadata database, downloaded models, and settings. This cannot
-                be undone.
+                Удаляет индекс, базу метаданных, загруженные модели и настройки. Отменить это
+                нельзя.
               </p>
             </div>
             <button
@@ -1578,7 +1557,7 @@ function AboutSection() {
               onClick={() => setConfirmOpen(true)}
               className="h-8 shrink-0 rounded-control border border-danger/40 px-3 text-[11px] font-medium text-danger transition-colors hover:bg-danger/10"
             >
-              Reset everything…
+              Сбросить всё…
             </button>
           </div>
         </div>
@@ -1592,7 +1571,7 @@ function AboutSection() {
 /* A tiny rendering of the app in each finish: field, rule, three tiles.
    Colors are the real tokens, scoped by data-theme on the swatch. */
 function ThemeSwatch({ value, active, onSelect }: { value: "light" | "dark"; active: boolean; onSelect: () => void }) {
-  const label = { light: "Light", dark: "Dark" }[value];
+  const label = { light: "Светлая", dark: "Тёмная" }[value];
   return (
     <button type="button" onClick={onSelect} aria-pressed={active} className="group flex flex-col gap-2.5 text-left outline-none">
       <span

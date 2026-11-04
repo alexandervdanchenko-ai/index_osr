@@ -78,7 +78,7 @@ export const FileRow = React.memo(function FileRow({
         <p className="truncate text-[12px] leading-[16px] text-subtle">{displayParent(item.path)}</p>
       </div>
       <span className="t-meta w-16 shrink-0 text-right text-subtle">
-        {item.is_dir ? "—" : formatBytes(item.file_size)}
+        {item.is_dir ? "-" : formatBytes(item.file_size)}
       </span>
       <span className="t-meta w-16 shrink-0 text-right text-subtle">{formatRelativeTime(item.modified)}</span>
     </div>

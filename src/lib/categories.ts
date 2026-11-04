@@ -37,14 +37,14 @@ export interface CategoryChip {
 }
 
 export const CATEGORY_CHIPS: CategoryChip[] = [
-  { id: "all", label: "All" },
-  { id: "file", label: "Files", token: "type:file" },
-  { id: "folder", label: "Folders", token: "type:dir" },
-  { id: "image", label: "Images", token: "type:image" },
-  { id: "doc", label: "Docs", token: "type:doc" },
-  { id: "code", label: "Code", token: "type:code" },
-  { id: "media", label: "Media", token: "type:media" },
-  { id: "recent", label: "Recent", token: "modified:<7d" },
+  { id: "all", label: "Все" },
+  { id: "file", label: "Файлы", token: "type:file" },
+  { id: "folder", label: "Папки", token: "type:dir" },
+  { id: "image", label: "Картинки", token: "type:image" },
+  { id: "doc", label: "Документы", token: "type:doc" },
+  { id: "code", label: "Код", token: "type:code" },
+  { id: "media", label: "Медиа", token: "type:media" },
+  { id: "recent", label: "Недавние", token: "modified:<7d" },
 ];
 
 export function classify(result: { is_dir: boolean; filename: string }): Category {

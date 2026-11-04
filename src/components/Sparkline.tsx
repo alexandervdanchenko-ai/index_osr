@@ -20,7 +20,7 @@ export const Sparkline: React.FC<SparklineProps> = ({
         style={{ width, height }}
         className="flex items-center text-[11px] text-subtle font-mono"
       >
-        <span className="mx-auto">—</span>
+        <span className="mx-auto">-</span>
       </div>
     );
   }

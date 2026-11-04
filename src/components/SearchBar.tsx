@@ -17,7 +17,7 @@ interface SearchBarProps {
   trailing?: React.ReactNode;
 }
 
-const PLACEHOLDERS = ["Search everything", "invoice from last week", "type:pdf in:~/Projects", "screenshots with a chart"];
+const PLACEHOLDERS = ["Искать везде", "договор аренды", "type:pdf in:~/Documents", "исковое заявление"];
 
 export function SearchBar({
   query,
@@ -57,23 +57,23 @@ export function SearchBar({
           autoComplete="off"
           autoFocus
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={isCommandMode ? "Command" : PLACEHOLDERS[phIdx]}
+          placeholder={isCommandMode ? "Команда" : PLACEHOLDERS[phIdx]}
           onFocus={onFocusInput}
-          aria-label="Search"
+          aria-label="Поиск"
           className="min-w-0 flex-1 bg-transparent text-[19px] font-medium leading-none tracking-[-0.022em] text-fg outline-none placeholder:font-normal placeholder:text-subtle"
           style={{ caretColor: "var(--blue)" }}
         />
 
         {query && !isCommandMode && (
           <span key={count} className="t-meta fade-in shrink-0 text-subtle">
-            {count === 0 ? "No results" : `${count.toLocaleString("en-US")} ${count === 1 ? "result" : "results"}`}
+            {count === 0 ? "Ничего не найдено" : `Найдено: ${count.toLocaleString("ru-RU")}`}
           </span>
         )}
 
         {query && (
           <button
             type="button"
-            title="Clear (Esc)"
+            title="Очистить (Esc)"
             onClick={() => {
               setQuery("");
               inputRef.current?.focus();

@@ -152,7 +152,7 @@ export function VirtualGrid<T>({
       <div style={{ height: contentHeight, position: "relative" }}>{rows}</div>
       {loading && (
         <div className="pointer-events-none sticky bottom-3 flex justify-center">
-          <span className="elevated fade-in t-meta !rounded-full px-3 py-1 text-muted">Loading more</span>
+          <span className="elevated fade-in t-meta !rounded-full px-3 py-1 text-muted">Загрузка…</span>
         </div>
       )}
     </div>

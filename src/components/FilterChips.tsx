@@ -27,7 +27,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
         <button
           key={f.raw + i}
           type="button"
-          title={`Remove filter ${f.raw}`}
+          title={`Убрать фильтр ${f.raw}`}
           onClick={(e) => {
             e.stopPropagation();
             onRemoveFilter(f);

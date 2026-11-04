@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Check, Copy, Stethoscope } from "lucide-react";
 import { DoctorCheck, DoctorReport } from "../../types";
 import { Card } from "./kit";
+import { plural } from "../../lib/format";
 
 /* Doctor — one-shot diagnostics over the index, watcher, database and
    models. Never auto-runs on mount; failures degrade to a calm inline
@@ -11,7 +12,7 @@ import { Card } from "./kit";
 type Phase = "idle" | "running" | "done" | "error";
 
 const RANK: Record<DoctorCheck["status"], number> = { fail: 0, warn: 1, ok: 2 };
-const WORD: Record<DoctorCheck["status"], string> = { ok: "ok", warn: "warning", fail: "fail" };
+const WORD: Record<DoctorCheck["status"], string> = { ok: "норма", warn: "внимание", fail: "ошибка" };
 const DOT: Record<DoctorCheck["status"], string> = {
   ok: "bg-success",
   warn: "bg-warning",
@@ -89,7 +90,7 @@ export function DoctorSection() {
             className="btn btn-secondary h-8 px-3 text-[12px]"
           >
             {copied ? <Check className="h-3 w-3 text-accent" /> : <Copy className="h-3 w-3" />}
-            Copy report
+            Скопировать отчёт
           </button>
         )}
         <button
@@ -99,7 +100,7 @@ export function DoctorSection() {
           className="btn btn-primary h-8 px-4 text-[12px]"
         >
           <Stethoscope className="h-3 w-3" />
-          Run checks
+          Запустить проверку
         </button>
       </div>
 
@@ -109,17 +110,17 @@ export function DoctorSection() {
             <span className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-accent-soft text-subtle">
               <Stethoscope className="h-4 w-4" />
             </span>
-            <p className="text-[13px] font-medium text-fg">Nothing has been checked yet</p>
+            <p className="text-[13px] font-medium text-fg">Проверка ещё не запускалась</p>
             <p className="max-w-sm text-[12px] leading-[18px] text-muted">
-              A pass over the full-text index, the file watcher, the metadata database and the
-              model files. Everything runs on your machine — nothing is sent anywhere.
+              Проверяются полнотекстовый индекс, отслеживание файлов, база метаданных и файлы
+              моделей. Всё выполняется на вашем компьютере, ничего никуда не отправляется.
             </p>
           </div>
         </Card>
       )}
 
       {phase === "running" && (
-        <Card title="Running">
+        <Card title="Идёт проверка">
           <div className="space-y-0">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="flex items-center gap-3 border-b border-line px-4 py-2.5 last:border-b-0">
@@ -137,10 +138,10 @@ export function DoctorSection() {
 
       {phase === "error" && (
         <div className="overflow-hidden rounded-panel border border-danger/30 bg-elevated">
-          <p className="p-4 text-[12px] font-medium text-danger">Doctor unavailable — backend not connected</p>
+          <p className="p-4 text-[12px] font-medium text-danger">Диагностика недоступна: серверная часть не подключена</p>
           <p className="px-4 pb-3 text-[12px] leading-[18px] text-muted">
-            The <code className="font-mono">run_doctor</code> command did not answer. It should
-            appear once the backend lands; the checks stay local and read-only.
+            Команда <code className="font-mono">run_doctor</code> не ответила. Проверки выполняются
+            только на этом компьютере и ничего не изменяют.
           </p>
         </div>
       )}
@@ -150,19 +151,19 @@ export function DoctorSection() {
           {/* Summary line with semantic-colored counts. */}
           <div className="flex items-center justify-between gap-4 border-b border-line bg-accent-soft px-4 py-2.5">
             <p className="text-[12px] text-muted">
-              {total} checks ·{" "}
-              <span className="text-success">{summary.ok} ok</span> ·{" "}
-              <span className="text-warning">{summary.warn} warning{summary.warn === 1 ? "" : "s"}</span>
+              {total} {plural(total, "проверка", "проверки", "проверок")} ·{" "}
+              <span className="text-success">{summary.ok} в норме</span> ·{" "}
+              <span className="text-warning">{summary.warn} {plural(summary.warn, "предупреждение", "предупреждения", "предупреждений")}</span>
               {summary.fail > 0 && (
                 <>
                   {" · "}
-                  <span className="text-danger">{summary.fail} fail{summary.fail === 1 ? "" : "s"}</span>
+                  <span className="text-danger">{summary.fail} {plural(summary.fail, "ошибка", "ошибки", "ошибок")}</span>
                 </>
               )}
             </p>
             {report.ran_at > 0 && (
               <p className="shrink-0 font-mono text-[11px] text-subtle">
-                {new Date(report.ran_at < 1e12 ? report.ran_at * 1000 : report.ran_at).toLocaleTimeString()}
+                {new Date(report.ran_at < 1e12 ? report.ran_at * 1000 : report.ran_at).toLocaleTimeString("ru-RU")}
               </p>
             )}
           </div>
@@ -182,7 +183,7 @@ export function DoctorSection() {
                     </code>
                     <button
                       type="button"
-                      title="Copy fix"
+                      title="Скопировать исправление"
                       onClick={() => copyFix(c.id, c.fix ?? "")}
                       className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-subtle transition-colors hover:bg-accent-soft hover:text-fg"
                     >

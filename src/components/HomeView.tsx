@@ -8,7 +8,7 @@ import { TypeTile } from "./TypeTile";
    last, as tiles. Saved searches sit on one quiet line above. With nothing
    recent, a single serif line and a few starting searches. */
 
-const SUGGESTIONS = ["latest resume", "screenshots from last week", "big videos", "invoice"];
+const SUGGESTIONS = ["исковое заявление", "договор", "доверенность", "type:pdf решение суда"];
 
 function RecentTile({
   item,
@@ -56,7 +56,7 @@ function RecentTile({
       <span className="flex min-w-0 flex-col px-0.5 pt-2">
         <span className="truncate text-[13px] font-medium leading-[18px] text-fg">{name}</span>
         <span className="t-meta truncate text-subtle">
-          {item.last_open > 0 ? `Opened ${formatRelativeTime(item.last_open)}` : formatRelativeTime(item.modified)}
+          {item.last_open > 0 ? `Открыт ${formatRelativeTime(item.last_open)}` : formatRelativeTime(item.modified)}
         </span>
       </span>
     </button>
@@ -84,7 +84,7 @@ export function HomeView({
   if (recent.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-start justify-end gap-4 px-4 pb-8">
-        <p className="t-moment rise-in max-w-md text-muted">Ask for a file the way you'd describe it to a friend.</p>
+        <p className="t-moment rise-in max-w-md text-muted">Опишите нужный файл своими словами, как рассказали бы коллеге.</p>
         <div className="flex flex-wrap gap-1.5">
           {SUGGESTIONS.map((q, i) => (
             <button
@@ -106,7 +106,7 @@ export function HomeView({
     <div className="px-3.5 pb-4 pt-1.5">
       {saved.length > 0 && (
         <div className="mb-4 flex flex-wrap items-baseline gap-x-5 gap-y-2">
-          <span className="t-meta text-subtle">Saved</span>
+          <span className="t-meta text-subtle">Сохранённые</span>
           {saved.map((s) => (
             <button
               key={s.name}
@@ -119,7 +119,7 @@ export function HomeView({
           ))}
         </div>
       )}
-      <p className="t-meta mb-2.5 px-0.5 text-subtle">Recent</p>
+      <p className="t-meta mb-2.5 px-0.5 text-subtle">Недавние</p>
       <div className="grid gap-x-3 gap-y-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(168px, 1fr))" }}>
         {recent.map((r, i) => (
           <RecentTile
