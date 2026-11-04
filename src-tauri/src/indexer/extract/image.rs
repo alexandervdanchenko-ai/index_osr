@@ -333,23 +333,62 @@ pub fn ocr_status() -> OcrStatus {
     build_status(engine_present, languages, dir, error)
 }
 
-/// Downloads `eng.traineddata` into [`tessdata_dir`] and returns its path.
-///
-/// An existing file larger than 1 MB is reused. The download is written to a
-/// `.part` file and renamed into place only after it passes a size sanity
-/// check, so a failed attempt never leaves a corrupt language file behind.
-pub fn download_eng_tessdata() -> Result<PathBuf, String> {
-    download_eng_tessdata_to(&tessdata_dir())
+/// A Tesseract language file fetched from a pinned commit and verified by hash.
+pub struct TessdataSpec {
+    pub lang: &'static str,
+    pub url: &'static str,
+    pub sha256: &'static str,
+    pub min_bytes: u64,
 }
 
-fn download_eng_tessdata_to(dir: &Path) -> Result<PathBuf, String> {
-    const URL: &str = "https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata";
-    const MIN_BYTES: u64 = 1_000_000;
+/// index_osr: language data pinned to one tessdata_fast commit and checked by
+/// SHA-256 (upstream fetched `main` and only checked the size). Russian comes
+/// first: court documents and scans are Russian, with Latin fragments.
+pub const TESSDATA: &[TessdataSpec] = &[
+    TessdataSpec {
+        lang: "rus",
+        url: "https://github.com/tesseract-ocr/tessdata_fast/raw/87416418657359cb625c412a48b6e1d6d41c29bd/rus.traineddata",
+        sha256: "e16e5e036cce1d9ec2b00063cf8b54472625b9e14d893a169e2b0dedeb4df225",
+        min_bytes: 1_000_000,
+    },
+    TessdataSpec {
+        lang: "eng",
+        url: "https://github.com/tesseract-ocr/tessdata_fast/raw/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+        sha256: "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2",
+        min_bytes: 1_000_000,
+    },
+];
 
-    let target = dir.join("eng.traineddata");
-    if let Ok(metadata) = std::fs::metadata(&target)
-        && metadata.is_file()
-        && metadata.len() > MIN_BYTES
+/// Downloads every language in [`TESSDATA`] (Russian and English) into
+/// [`tessdata_dir`]. Runs only on an explicit user action.
+pub fn download_tessdata() -> Result<Vec<PathBuf>, String> {
+    let dir = tessdata_dir();
+    let paths = TESSDATA
+        .iter()
+        .map(|spec| download_tessdata_to(&dir, spec))
+        .collect::<Result<Vec<_>, _>>()?;
+    reset_tesseract_probe();
+    Ok(paths)
+}
+
+/// Kept for callers of the upstream API; fetches all pinned languages.
+pub fn download_eng_tessdata() -> Result<PathBuf, String> {
+    download_tessdata()?;
+    Ok(tessdata_dir().join("eng.traineddata"))
+}
+
+/// Downloads one language file and returns its path.
+///
+/// An existing file is reused only when its SHA-256 matches. The download is
+/// written to a `.part` file and renamed into place only after it passes the
+/// size and hash checks, so a failed attempt never leaves a bad file behind.
+fn download_tessdata_to(dir: &Path, spec: &TessdataSpec) -> Result<PathBuf, String> {
+    let file_name = format!("{}.traineddata", spec.lang);
+    let target = dir.join(&file_name);
+    if target.is_file()
+        && crate::models::sha256_file(&target)
+            .map(|actual| actual.eq_ignore_ascii_case(spec.sha256))
+            .unwrap_or(false)
     {
         return Ok(target);
     }
@@ -368,11 +407,11 @@ fn download_eng_tessdata_to(dir: &Path) -> Result<PathBuf, String> {
             .map_err(|e| format!("Failed to secure {}: {}", dir.display(), e))?;
     }
 
-    let part = dir.join("eng.traineddata.part");
+    let part = dir.join(format!("{file_name}.part"));
     let _ = std::fs::remove_file(&part);
 
     let download = (|| -> Result<u64, String> {
-        let response = match ureq::get(URL).timeout(Duration::from_secs(600)).call() {
+        let response = match ureq::get(spec.url).timeout(Duration::from_secs(600)).call() {
             Ok(response) => response,
             Err(ureq::Error::Status(code, _)) => {
                 return Err(format!("Download failed: HTTP {}", code));
@@ -401,12 +440,17 @@ fn download_eng_tessdata_to(dir: &Path) -> Result<PathBuf, String> {
         }
     };
 
-    if written <= MIN_BYTES {
+    if written <= spec.min_bytes {
         let _ = std::fs::remove_file(&part);
         return Err(format!(
-            "Downloaded eng.traineddata is too small ({} bytes; expected more than {})",
-            written, MIN_BYTES
+            "Downloaded {} is too small ({} bytes; expected more than {})",
+            file_name, written, spec.min_bytes
         ));
+    }
+    let actual = crate::models::sha256_file(&part)?;
+    if !actual.eq_ignore_ascii_case(spec.sha256) {
+        let _ = std::fs::remove_file(&part);
+        return Err(format!("Downloaded {file_name} failed the SHA-256 check"));
     }
 
     if let Err(first) = std::fs::rename(&part, &target) {
@@ -446,6 +490,10 @@ pub fn tesseract_usable() -> bool {
     }
 }
 
+/// Languages Tesseract reported at the last probe (index_osr), used to build
+/// the `-l` argument. Cleared together with the probe.
+static TESSERACT_LANGS: std::sync::RwLock<Vec<String>> = std::sync::RwLock::new(Vec::new());
+
 /// True when Tesseract runs *and* has at least one language to read with.
 /// A binary without language data starts fine and then fails on every image.
 fn tesseract_has_language() -> bool {
@@ -454,18 +502,40 @@ fn tesseract_has_language() -> bool {
     if let Some(dir) = private_tessdata(&tessdata_dir()) {
         list.env("TESSDATA_PREFIX", dir);
     }
-    match list.output() {
+    let langs = match list.output() {
         Ok(output) if output.status.success() => {
-            !parse_langs(&String::from_utf8_lossy(&output.stdout)).is_empty()
-                || !parse_langs(&String::from_utf8_lossy(&output.stderr)).is_empty()
+            let mut langs = parse_langs(&String::from_utf8_lossy(&output.stdout));
+            if langs.is_empty() {
+                langs = parse_langs(&String::from_utf8_lossy(&output.stderr));
+            }
+            langs
         }
-        _ => false,
+        _ => Vec::new(),
+    };
+    let usable = !langs.is_empty();
+    if let Ok(mut cached) = TESSERACT_LANGS.write() {
+        *cached = langs;
+    }
+    usable
+}
+
+/// The `-l` value for Tesseract: Russian plus English when both are present,
+/// Russian alone, or `None` to keep Tesseract's default (English).
+pub fn tesseract_lang_arg(langs: &[String]) -> Option<String> {
+    let has = |code: &str| langs.iter().any(|lang| lang == code);
+    match (has("rus"), has("eng")) {
+        (true, true) => Some("rus+eng".to_string()),
+        (true, false) => Some("rus".to_string()),
+        _ => None,
     }
 }
 
 /// Forgets the cached Tesseract probe (Settings "re-check", config changes).
 pub fn reset_tesseract_probe() {
     TESSERACT_PROBE.store(0, Ordering::Relaxed);
+    if let Ok(mut cached) = TESSERACT_LANGS.write() {
+        cached.clear();
+    }
 }
 
 /// Reads text from an image file with whichever engine can run.
@@ -587,6 +657,16 @@ fn tesseract_ocr(path: &Path) -> crate::ocr::OcrOutcome {
         .args(["stdout", "--psm", "3"]) // Fully automatic page segmentation
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
+    // index_osr: read Russian scans with Russian language data. The probe
+    // fills the language cache; it has already run when OCR reaches here.
+    let _ = tesseract_usable();
+    let lang = TESSERACT_LANGS
+        .read()
+        .ok()
+        .and_then(|langs| tesseract_lang_arg(&langs));
+    if let Some(lang) = lang {
+        command.args(["-l", &lang]);
+    }
 
     // Prefer Kensaku's private language data when it has been downloaded, but
     // never override a working system installation.
@@ -1129,20 +1209,53 @@ mod tests {
     }
 
     #[test]
-    fn existing_large_tessdata_is_reused_without_download() {
+    fn verified_tessdata_is_reused_without_download() {
         let dir = TempDir::new("tessdata-existing");
-        let target = dir.join("eng.traineddata");
-        let file = std::fs::File::create(&target).expect("create sparse file");
-        file.set_len(2_000_000).expect("size sparse file");
-        drop(file);
+        let target = dir.join("tst.traineddata");
+        std::fs::write(&target, b"language data").expect("write language file");
+        let expected = crate::models::sha256_file(&target).expect("hash");
+        let spec = TessdataSpec {
+            lang: "tst",
+            url: "http://127.0.0.1:9/never-fetched",
+            sha256: Box::leak(expected.into_boxed_str()),
+            min_bytes: 0,
+        };
 
-        let resolved = download_eng_tessdata_to(&dir.path).expect("existing file is reused");
+        let resolved = download_tessdata_to(&dir.path, &spec).expect("existing file is reused");
 
         assert_eq!(resolved, target);
-        assert!(!dir.join("eng.traineddata.part").exists());
-        assert_eq!(
-            std::fs::metadata(&target).expect("metadata").len(),
-            2_000_000
-        );
+        assert!(!dir.join("tst.traineddata.part").exists());
+    }
+
+    #[test]
+    fn tessdata_with_wrong_hash_is_not_trusted() {
+        let dir = TempDir::new("tessdata-tampered");
+        std::fs::write(dir.join("tst.traineddata"), b"tampered").expect("write language file");
+        let spec = TessdataSpec {
+            lang: "tst",
+            // Unroutable: the reuse check must fail before any network use
+            // succeeds, so the call errors instead of returning the file.
+            url: "http://127.0.0.1:9/never",
+            sha256: "0000000000000000000000000000000000000000000000000000000000000000",
+            min_bytes: 0,
+        };
+        assert!(download_tessdata_to(&dir.path, &spec).is_err());
+    }
+
+    #[test]
+    fn russian_is_requested_when_available() {
+        let langs = |list: &[&str]| list.iter().map(|l| l.to_string()).collect::<Vec<_>>();
+        assert_eq!(tesseract_lang_arg(&langs(&["eng", "rus", "osd"])), Some("rus+eng".into()));
+        assert_eq!(tesseract_lang_arg(&langs(&["rus"])), Some("rus".into()));
+        assert_eq!(tesseract_lang_arg(&langs(&["eng"])), None);
+    }
+
+    #[test]
+    fn pinned_tessdata_has_hashes_and_commit_urls() {
+        for spec in TESSDATA {
+            assert_eq!(spec.sha256.len(), 64, "{}", spec.lang);
+            assert!(!spec.url.contains("/main/"), "{} must be pinned", spec.lang);
+        }
+        assert_eq!(TESSDATA[0].lang, "rus");
     }
 }

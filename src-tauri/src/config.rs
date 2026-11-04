@@ -211,10 +211,11 @@ fn default_true() -> bool {
     true
 }
 
-/// PP-OCR ships with every installer and is verified at runtime; where it
-/// cannot run (Intel Macs) the engine selection falls back to Tesseract.
+/// index_osr: Tesseract with Russian language data is the default. The
+/// bundled PP-OCR tiny model has no Cyrillic dictionary, so it cannot read
+/// Russian scans; it remains the fallback when Tesseract is missing.
 fn default_ocr_engine() -> String {
-    "accurate".to_string()
+    "tesseract".to_string()
 }
 
 fn default_app_mode() -> String {
@@ -877,7 +878,8 @@ mod tests {
     #[test]
     fn fresh_defaults_are_the_1_0_10_defaults() {
         let cfg = KensakuConfig::default();
-        assert_eq!(cfg.ocr_engine, "accurate");
+        // index_osr: Tesseract (Russian data) is the default engine.
+        assert_eq!(cfg.ocr_engine, "tesseract");
         assert!(!cfg.excluded_extensions.iter().any(|e| e == "mp4" || e == "zip"));
         assert!(cfg.excluded_extensions.iter().any(|e| e == "exe"));
         assert!(!cfg.excluded_dirs.iter().any(|d| d.contains('*')));

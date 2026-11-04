@@ -694,11 +694,12 @@ pub async fn get_ocr_status() -> Result<OcrStatus, String> {
         .map_err(|e| format!("OCR status task failed: {}", e))
 }
 
-/// Downloads the English tessdata file, then returns the refreshed status.
+/// Downloads the pinned Russian and English tessdata files (index_osr), then
+/// returns the refreshed status. Only ever runs on the user's click.
 #[tauri::command]
 pub async fn download_ocr_language() -> Result<OcrStatus, String> {
     tauri::async_runtime::spawn_blocking(|| {
-        image::download_eng_tessdata()?;
+        image::download_tessdata()?;
         Ok::<OcrStatus, String>(image::ocr_status())
     })
     .await

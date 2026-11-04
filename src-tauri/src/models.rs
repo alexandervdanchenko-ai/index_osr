@@ -734,7 +734,7 @@ fn sha256_matches(path: &Path, expected: Option<&str>) -> Result<bool, String> {
     Ok(actual.eq_ignore_ascii_case(expected))
 }
 
-fn sha256_file(path: &Path) -> Result<String, String> {
+pub(crate) fn sha256_file(path: &Path) -> Result<String, String> {
     use sha2::{Digest, Sha256};
     let bytes =
         std::fs::read(path).map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
