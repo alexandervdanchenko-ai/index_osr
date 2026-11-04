@@ -295,7 +295,23 @@ fn current_error() -> Option<String> {
 }
 
 pub fn models_dir() -> PathBuf {
+    // index_osr: a model shipped next to the executable (CourtMonitor's
+    // installer puts it in `<exe_dir>/models`) wins, like a bundled
+    // Tesseract, so nothing has to be downloaded or copied per user.
+    if let Some(dir) = bundled_models_dir() {
+        return dir;
+    }
     KensakuConfig::config_dir().join("models")
+}
+
+/// `<exe_dir>/models` when it holds the semantic model files.
+fn bundled_models_dir() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?.join("models");
+    ARTIFACTS
+        .iter()
+        .all(|artifact| dir.join(artifact.name).is_file())
+        .then_some(dir)
 }
 
 /// Creates the models directory (0700 on unix) if needed.

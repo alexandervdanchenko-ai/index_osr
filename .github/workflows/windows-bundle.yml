@@ -1,0 +1,134 @@
+name: Windows bundle for CourtMonitor
+
+# index_osr: собирает комплект «Поиск по документам» для установщика
+# CourtMonitor и публикует его выпуском osr-build-N:
+#   kensaku.exe          - окно поиска и индексатор (работает в трее)
+#   kensaku-cli.exe      - доступ для программы и Claude (MCP)
+#   tesseract\           - Tesseract OCR с языковыми данными rus + eng
+#   models\              - многоязычная модель смысла potion-multilingual-128M
+# Каждый скачиваемый файл проверяется по SHA-256. Сборка без подписи.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["osr-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    runs-on: windows-latest
+    env:
+      TESSERACT_URL: https://github.com/tesseract-ocr/tesseract/releases/download/5.5.3/tesseract-ocr-w64-setup-5.5.3.20260724.exe
+      # Заполняется после первого запуска (шаг печатает фактическую сумму).
+      TESSERACT_SHA256: ""
+      TESSDATA_COMMIT: 87416418657359cb625c412a48b6e1d6d41c29bd
+      RUS_SHA256: e16e5e036cce1d9ec2b00063cf8b54472625b9e14d893a169e2b0dedeb4df225
+      ENG_SHA256: 7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2
+      MODEL_REV: 73908c3438cf03b6a01bcb9611d62b23d0726f08
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Tesseract (UB Mannheim build) - download and verify
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $setup = Join-Path $env:RUNNER_TEMP "tesseract-setup.exe"
+          Invoke-WebRequest -Uri $env:TESSERACT_URL -OutFile $setup -UseBasicParsing
+          $actual = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLower()
+          Write-Output "tesseract installer sha256: $actual"
+          if ([string]::IsNullOrEmpty($env:TESSERACT_SHA256)) { throw "TESSERACT_SHA256 is not pinned yet; actual is $actual" }
+          if ($actual -ne $env:TESSERACT_SHA256) { throw "tesseract installer checksum mismatch: $actual" }
+          $out = Join-Path $env:RUNNER_TEMP "tess"
+          & 7z x $setup "-o$out" -y | Out-Null
+          if (-not (Test-Path "$out\tesseract.exe")) { throw "tesseract.exe not found in installer" }
+          New-Item -ItemType Directory -Force -Path "dist\index_osr\tesseract\tessdata" | Out-Null
+          Copy-Item "$out\tesseract.exe" "dist\index_osr\tesseract\"
+          Copy-Item "$out\*.dll" "dist\index_osr\tesseract\"
+          foreach ($lang in @(@("rus", $env:RUS_SHA256), @("eng", $env:ENG_SHA256))) {
+            $file = "dist\index_osr\tesseract\tessdata\$($lang[0]).traineddata"
+            Invoke-WebRequest -UseBasicParsing -OutFile $file -Uri "https://github.com/tesseract-ocr/tessdata_fast/raw/$env:TESSDATA_COMMIT/$($lang[0]).traineddata"
+            $h = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLower()
+            if ($h -ne $lang[1]) { throw "$($lang[0]).traineddata checksum mismatch: $h" }
+          }
+          & "dist\index_osr\tesseract\tesseract.exe" --version
+          & "dist\index_osr\tesseract\tesseract.exe" --list-langs
+
+      - name: Multilingual model - download and verify
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path "dist\index_osr\models" | Out-Null
+          $files = @{
+            "config.json" = "595e4cab2093732efd5dbe084fd5c1826b5eea693b73b4c1fd971672867d2e54";
+            "tokenizer.json" = "19f1909063da3cfe3bd83a782381f040dccea475f4816de11116444a73e1b6a1";
+            "model.safetensors" = "14b5eb39cb4ce5666da8ad1f3dc6be4346e9b2d601c073302fa0a31bf7943397"
+          }
+          foreach ($name in $files.Keys) {
+            $file = "dist\index_osr\models\$name"
+            Invoke-WebRequest -UseBasicParsing -OutFile $file -Uri "https://huggingface.co/minishlab/potion-multilingual-128M/resolve/$env:MODEL_REV/$name"
+            $h = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLower()
+            if ($h -ne $files[$name]) { throw "$name checksum mismatch: $h" }
+          }
+
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri -> target
+            cli -> target
+          cache-on-failure: true
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          bun install --frozen-lockfile
+          bunx tauri build --no-bundle
+          cargo build --release --manifest-path cli/Cargo.toml --bin kensaku-cli
+          Copy-Item "src-tauri\target\release\kensaku.exe" "dist\index_osr\"
+          Copy-Item "cli\target\release\kensaku-cli.exe" "dist\index_osr\"
+
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          & "dist\index_osr\kensaku-cli.exe" --help | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "kensaku-cli --help failed" }
+
+      - name: Licenses and manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Copy-Item LICENSE "dist\index_osr\LICENSE-index_osr.txt"
+          @'
+          Поиск по документам (index_osr) - сторонние компоненты
+          =======================================================
+          index_osr: форк Kensaku (https://github.com/yjid/kensaku), Copyright (c) 2026 Yash Jangid, лицензия MIT (LICENSE-index_osr.txt).
+          Tesseract OCR (https://github.com/tesseract-ocr/tesseract), сборка UB Mannheim: Apache License 2.0.
+          Языковые данные tessdata_fast (rus, eng): Apache License 2.0.
+          Модель potion-multilingual-128M (https://huggingface.co/minishlab/potion-multilingual-128M), MinishLab: MIT.
+          '@ | Set-Content -Encoding utf8 "dist\index_osr\THIRD_PARTY.txt"
+          Get-ChildItem -Recurse "dist\index_osr" -File | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower(), $_.FullName.Substring((Resolve-Path "dist\index_osr").Path.Length + 1)
+          } | Set-Content -Encoding utf8 "dist\index_osr\SHA256SUMS.txt"
+          Compress-Archive -Path "dist\index_osr\*" -DestinationPath "dist\index_osr-windows-x64.zip" -CompressionLevel Optimal
+          $zipHash = (Get-FileHash -Algorithm SHA256 "dist\index_osr-windows-x64.zip").Hash.ToLower()
+          Set-Content -Encoding ascii "dist\index_osr-windows-x64.zip.sha256" "$zipHash  index_osr-windows-x64.zip"
+          Write-Output "bundle sha256: $zipHash"
+          Get-Item "dist\index_osr-windows-x64.zip" | Select-Object Name, Length
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="osr-build-${{ github.run_number }}"
+          gh release create "$tag" dist/index_osr-windows-x64.zip dist/index_osr-windows-x64.zip.sha256 \
+            --target "${{ github.sha }}" \
+            --title "Поиск по документам для CourtMonitor (сборка ${{ github.run_number }})" \
+            --notes "Комплект для установщика CourtMonitor. Коммит ${GITHUB_SHA::7}. SHA-256 архива - в файле .sha256."
