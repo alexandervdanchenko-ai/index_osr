@@ -3554,12 +3554,13 @@ dependencies = [
 
 [[package]]
 name = "kensaku"
-version = "1.0.11"
+version = "1.0.12"
 dependencies = [
  "auto-launch",
  "base64 0.22.1",
  "dirs 6.0.0",
  "fs4",
+ "getrandom 0.3.4",
  "image",
  "interprocess",
  "jwalk",
