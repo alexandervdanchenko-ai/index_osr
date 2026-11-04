@@ -7,7 +7,6 @@ use std::io::Read;
 use std::ops::Bound;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::SystemTime;
 use tantivy::collector::{DocSetCollector, TopDocs};
 use tantivy::query::{
     AllQuery, BooleanQuery, Occur, Query, QueryParser, RangeQuery, RegexQuery, TermQuery,
@@ -364,7 +363,8 @@ pub const MAX_REGEX_PATTERN_LEN: usize = 1024;
 /// v1: K5 schema (content_folded + content_raw)
 /// v2: K15 schema (CJK-aware "kensaku" tokenizer on filename and content)
 /// v3: ext/size fields for filter pushdown (K12/B4)
-pub const CONTENT_SCHEMA_VERSION: u32 = 3;
+/// v4: index_osr - Russian stemmer and ё/е folding in the "kensaku" analyzer
+pub const CONTENT_SCHEMA_VERSION: u32 = 4;
 pub const SCHEMA_MARKER_FILE: &str = "content.schema";
 
 impl ContentIndex {
@@ -421,26 +421,20 @@ impl ContentIndex {
                     "K15 CJK tokenizer migration (schema v1 -> v2)"
                 } else if !has_pushdown {
                     "K12 filter pushdown migration (schema v2 -> v3)"
+                } else if marker_version < 4 {
+                    "Russian stemmer and ё/е folding (schema v3 -> v4)"
                 } else {
                     "Content schema marker is stale"
                 };
                 rebuild_reason = Some(reason.to_string());
                 log::info!("[Kensaku] Content index rebuild required: {}", reason);
-                // Tantivy schemas are immutable. Preserve the old derived index
-                // beside the live one and rebuild into the live path; the
-                // caller marks every file for content re-extraction.
+                // Tantivy schemas are immutable. index_osr: the old index holds
+                // the full text of every document, so it is deleted rather than
+                // kept beside the live one; it is derived data and the caller
+                // marks every file for content re-extraction.
                 drop(existing);
-                let stamp = SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .map(|duration| duration.as_secs())
-                    .unwrap_or(0);
-                let backup = index_dir.with_file_name(format!("index.legacy-{stamp}"));
-                fs::rename(index_dir, &backup).map_err(|e| {
-                    format!(
-                        "Failed to move legacy content index to {}: {}",
-                        backup.display(),
-                        e
-                    )
+                fs::remove_dir_all(index_dir).map_err(|e| {
+                    format!("Failed to remove stale content index {}: {}", index_dir.display(), e)
                 })?;
                 fs::create_dir_all(index_dir).map_err(|e| e.to_string())?;
                 rebuilt = true;
@@ -1774,11 +1768,11 @@ mod tests {
         assert!(index.content_folded_field.is_some());
         assert!(index.content_raw_field.is_some());
         assert!(
-            fs::read_dir(&root).unwrap().flatten().any(|entry| entry
+            !fs::read_dir(&root).unwrap().flatten().any(|entry| entry
                 .file_name()
                 .to_string_lossy()
                 .starts_with("index.legacy-")),
-            "old derived index should be preserved beside the new one"
+            "index_osr: the old index (document text) must not be left behind"
         );
 
         index
@@ -1796,6 +1790,23 @@ mod tests {
 
         drop(index);
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn russian_search_matches_other_word_forms_and_yo() {
+        let temp = temp_index("russian");
+        let index = temp.index.as_ref().unwrap();
+        add(
+            index,
+            "/tmp/kensaku/ru/prikaz.txt",
+            "prikaz.txt",
+            "Приказ об увольнении работника за прогул. Окончательный расчёт не произведён.",
+        );
+        index.commit().unwrap();
+        for query in ["увольнение", "увольнения", "работников", "расчет", "прогулы"] {
+            assert_eq!(index.search(query, 10, None).len(), 1, "query {query}");
+        }
+        assert!(index.search("премия", 10, None).is_empty());
     }
 
     #[test]
@@ -2185,7 +2196,7 @@ mod tests {
             Some("K12 filter pushdown migration (schema v2 -> v3)")
         );
         let marker = fs::read_to_string(index_dir.join(SCHEMA_MARKER_FILE)).unwrap();
-        assert_eq!(marker.trim(), "3");
+        assert_eq!(marker.trim(), CONTENT_SCHEMA_VERSION.to_string());
         assert!(migrated.ext_field.is_some());
         assert!(migrated.size_field.is_some());
         drop(migrated);
@@ -2235,7 +2246,7 @@ mod tests {
         );
         assert!(index_dir.join(SCHEMA_MARKER_FILE).exists());
         let marker = fs::read_to_string(index_dir.join(SCHEMA_MARKER_FILE)).unwrap();
-        assert_eq!(marker.trim(), "3");
+        assert_eq!(marker.trim(), CONTENT_SCHEMA_VERSION.to_string());
         drop(migrated);
         std::thread::sleep(std::time::Duration::from_millis(20));
 

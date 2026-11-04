@@ -5,7 +5,7 @@
 //! SimpleTokenizer behavior for Latin text, code identifiers, numbers, and paths.
 
 use tantivy::tokenizer::{
-    LowerCaser, RemoveLongFilter, TextAnalyzer, Token, TokenStream, Tokenizer,
+    Language, LowerCaser, RemoveLongFilter, Stemmer, TextAnalyzer, Token, TokenStream, Tokenizer,
 };
 
 /// Returns true if `ch` falls within recognized CJK Unicode blocks:
@@ -151,17 +151,31 @@ impl<'a> KensakuTokenStream<'a> {
         self.token.position = self.token.position.wrapping_add(1);
         self.token.offset_from = from;
         self.token.offset_to = to;
-        self.token.text.push_str(&self.text[from..to]);
+        let slice = &self.text[from..to];
+        // index_osr: Russian "ё" and "е" are interchangeable in practice
+        // (documents rarely write "ё" consistently), so both index as "е".
+        // Byte offsets still point at the original slice.
+        if slice.contains(['ё', 'Ё']) {
+            self.token.text.push_str(&slice.replace('ё', "е").replace('Ё', "Е"));
+        } else {
+            self.token.text.push_str(slice);
+        }
         self.token.position_length = 1;
     }
 }
 
 /// Builds the default text analyzer for Kensaku fields using the CJK-aware tokenizer,
-/// length filter, and lowercaser.
+/// length filter, lowercaser and (index_osr) the Russian Snowball stemmer.
+///
+/// The stemmer reduces Russian word forms to one stem, so "увольнение" finds
+/// "увольнения", "увольнении", "увольнением". The Russian algorithm only
+/// touches Cyrillic endings: Latin words, code identifiers, numbers and CJK
+/// grams pass through unchanged. Applied at index and query time alike.
 pub fn kensaku_analyzer() -> TextAnalyzer {
     TextAnalyzer::builder(KensakuTokenizer::default())
         .filter(RemoveLongFilter::limit(40))
         .filter(LowerCaser)
+        .filter(Stemmer::new(Language::Russian))
         .build()
 }
 
@@ -177,6 +191,31 @@ mod tests {
             tokens.push(stream.token().clone());
         }
         tokens
+    }
+
+    fn texts(text: &str) -> Vec<String> {
+        analyze(text).into_iter().map(|t| t.text).collect()
+    }
+
+    #[test]
+    fn russian_word_forms_share_one_stem() {
+        let forms = ["увольнение", "увольнения", "увольнении", "увольнением", "Увольнению"];
+        let stems: Vec<String> = forms.iter().map(|f| texts(f).remove(0)).collect();
+        assert!(stems.iter().all(|s| s == &stems[0]), "{stems:?}");
+        assert_eq!(texts("работодателя"), texts("работодатель"));
+    }
+
+    #[test]
+    fn yo_and_ye_are_equivalent_and_offsets_kept() {
+        assert_eq!(texts("расчёт"), texts("расчет"));
+        let tokens = analyze("Ёлкин");
+        assert_eq!(tokens[0].offset_from, 0);
+        assert_eq!(tokens[0].offset_to, "Ёлкин".len());
+    }
+
+    #[test]
+    fn latin_words_and_numbers_are_not_stemmed() {
+        assert_eq!(texts("reports 2026 ТК"), vec!["reports", "2026", "тк"]);
     }
 
     #[test]
