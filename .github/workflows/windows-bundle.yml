@@ -21,8 +21,9 @@ jobs:
     runs-on: windows-latest
     env:
       TESSERACT_URL: https://github.com/tesseract-ocr/tesseract/releases/download/5.5.3/tesseract-ocr-w64-setup-5.5.3.20260724.exe
-      # Заполняется после первого запуска (шаг печатает фактическую сумму).
-      TESSERACT_SHA256: ""
+      # Совпадает с InstallerSha256 в манифесте winget (microsoft/winget-pkgs,
+      # manifests/t/tesseract-ocr/tesseract/5.5.3).
+      TESSERACT_SHA256: bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4
       TESSDATA_COMMIT: 87416418657359cb625c412a48b6e1d6d41c29bd
       RUS_SHA256: e16e5e036cce1d9ec2b00063cf8b54472625b9e14d893a169e2b0dedeb4df225
       ENG_SHA256: 7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2
