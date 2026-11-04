@@ -376,6 +376,24 @@ impl AgentSession<'_> {
         }
     }
 
+    /// Full extracted text stored in the index for `path` (OCR included), or
+    /// `None` when the file is not in the index. Never extracts anything.
+    ///
+    /// index_osr: lets agents read a scan without OCR-ing it again.
+    pub fn stored_text(&self, path: &str) -> Result<Option<String>, String> {
+        match self {
+            Self::Daemon => {
+                let value = crate::daemon::request("stored_text", json!({ "path": path }))?;
+                Ok(value.get("text").and_then(Value::as_str).map(str::to_string))
+            }
+            Self::Local(index) => Ok(index
+                .content
+                .as_ref()
+                .and_then(|content| content.get_stored_text(Path::new(path)))),
+            Self::None => Err(NO_INDEX_MESSAGE.to_string()),
+        }
+    }
+
     pub fn search_page(
         &self,
         query: &str,

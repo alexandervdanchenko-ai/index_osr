@@ -270,6 +270,34 @@ fn tool_definitions(reindex_enabled: bool, visual_available: bool) -> Vec<Value>
             }
         }),
         json!({
+            "name": "read_document",
+            "description": "Read the full text of an indexed document (including OCR text of scans) in pages. Text comes from the index, so scans are not re-recognized. Only files inside the indexed folders can be read. Use next_offset to continue; quote originals carefully, OCR text may contain recognition errors.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path of the document (as returned by search)."
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "default": 0,
+                        "description": "Character offset to start from (next_offset of the previous page)."
+                    },
+                    "max_chars": {
+                        "type": "integer",
+                        "minimum": 1000,
+                        "maximum": 100000,
+                        "default": 30000,
+                        "description": "Maximum characters to return in this page."
+                    }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }
+        }),
+        json!({
             "name": "index_state",
             "description": "Report index freshness/progress and size: file/dir counts, content documents, semantic units, model ids, phase and watched roots.",
             "inputSchema": {
@@ -422,6 +450,7 @@ fn call_tool(
         "health_check" => Ok(tool_health_check(session)),
         "search" => tool_search(session, &arguments),
         "read_snippet" => tool_read_snippet(session, &arguments),
+        "read_document" => tool_read_document(session, &arguments),
         "index_state" => tool_index_state(session),
         "similar_images" => tool_similar_images(session, &arguments),
         "regex_search" => tool_regex_search(session, &arguments),
@@ -808,6 +837,22 @@ fn tool_read_snippet(session: &AgentSession<'_>, args: &Value) -> Result<Value, 
             })?,
     };
 
+    // index_osr: prefer the text already stored in the index. Upstream
+    // re-extracted the file on every call, re-running OCR on scans.
+    if let Ok(Some(text)) = session.stored_text(path) {
+        let (line_start, line_end, window, truncated) =
+            read_snippet_window(&text, query.as_deref(), max_tokens);
+        return Ok(json!({
+            "path": path,
+            "line_start": line_start,
+            "line_end": line_end,
+            "text": window,
+            "truncated": truncated,
+            "token_budget": max_tokens,
+            "source": "index",
+        }));
+    }
+
     if crate::daemon::request("ping", json!({})).is_ok()
         && let Ok(value) = crate::daemon::request(
             "read_snippet",
@@ -836,6 +881,67 @@ fn tool_read_snippet(session: &AgentSession<'_>, args: &Value) -> Result<Value, 
         "truncated": truncated,
         "token_budget": max_tokens,
     }))
+}
+
+/// index_osr: pages through the full stored text of one indexed document.
+fn tool_read_document(session: &AgentSession<'_>, args: &Value) -> Result<Value, ToolFailure> {
+    let path = args
+        .get("path")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .ok_or_else(|| ToolFailure::Invalid("Invalid params: 'path' is required".to_string()))?;
+    if !agent_path_allowed(&session.scoped_roots(), path) {
+        return Err(ToolFailure::Invalid(
+            "Invalid params: path is outside the indexed folders".to_string(),
+        ));
+    }
+    let offset = match args.get("offset") {
+        None | Some(Value::Null) => 0,
+        Some(value) => value.as_u64().map(|v| v as usize).ok_or_else(|| {
+            ToolFailure::Invalid("Invalid params: 'offset' must be a non-negative integer".to_string())
+        })?,
+    };
+    let max_chars = match args.get("max_chars") {
+        None | Some(Value::Null) => 30_000,
+        Some(value) => value
+            .as_u64()
+            .filter(|n| (1_000..=100_000).contains(n))
+            .map(|n| n as usize)
+            .ok_or_else(|| {
+                ToolFailure::Invalid(
+                    "Invalid params: 'max_chars' must be an integer between 1000 and 100000"
+                        .to_string(),
+                )
+            })?,
+    };
+
+    let text = session
+        .stored_text(path)
+        .map_err(ToolFailure::Execution)?
+        .ok_or_else(|| {
+            ToolFailure::Execution(format!(
+                "{path} is not in the index yet (not indexed, excluded, or still being processed)"
+            ))
+        })?;
+    Ok(document_page(path, &text, offset, max_chars))
+}
+
+/// One page of `text` measured in characters, never splitting a code point.
+fn document_page(path: &str, text: &str, offset: usize, max_chars: usize) -> Value {
+    let total_chars = text.chars().count();
+    let start = offset.min(total_chars);
+    let page: String = text.chars().skip(start).take(max_chars).collect();
+    let end = start + page.chars().count();
+    json!({
+        "path": path,
+        "offset": start,
+        "total_chars": total_chars,
+        "next_offset": if end < total_chars { Value::from(end) } else { Value::Null },
+        "truncated": end < total_chars,
+        "source": "index",
+        "text": page,
+    })
 }
 
 fn tool_index_state(session: &AgentSession<'_>) -> Result<Value, ToolFailure> {
@@ -1196,6 +1302,22 @@ mod tests {
     }
 
     #[test]
+    fn document_pages_cover_the_text_without_splitting_characters() {
+        let text = "Приказ № 47-к. Уволить за прогул.";
+        let first = document_page("/d/p.txt", text, 0, 10);
+        assert_eq!(first["text"], "Приказ № 4");
+        assert_eq!(first["next_offset"], 10);
+        assert_eq!(first["total_chars"], text.chars().count());
+        let second = document_page("/d/p.txt", text, 10, 1000);
+        assert_eq!(second["next_offset"], Value::Null);
+        assert_eq!(
+            format!("{}{}", first["text"].as_str().unwrap(), second["text"].as_str().unwrap()),
+            text
+        );
+        assert_eq!(document_page("/d/p.txt", text, 999, 10)["text"], "");
+    }
+
+    #[test]
     fn tools_list_exposes_read_only_tools_and_valid_schemas() {
         let fixture = fixture("tools-list");
         let response = handle_request(
@@ -1205,7 +1327,7 @@ mod tests {
         .expect("tools/list must reply");
 
         let tools = response["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 7);
+        assert_eq!(tools.len(), 8);
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert_eq!(
             names,
@@ -1213,6 +1335,7 @@ mod tests {
                 "health_check",
                 "search",
                 "read_snippet",
+                "read_document",
                 "index_state",
                 "regex_search",
                 "find_symbol",
@@ -1265,6 +1388,42 @@ mod tests {
         assert_eq!(response["result"]["isError"], true);
         let text = response["result"]["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("No Kensaku index found"), "got: {text}");
+    }
+
+    #[test]
+    fn read_document_serves_stored_text_even_after_the_file_is_gone() {
+        let text = "Приказ № 47-к от 12.03.2026. Уволить Петрова С.И. за прогул.";
+        let fixture = fixture_with_files("read-document", &[("scan.txt", text)]);
+        let path = fixture.dir.join("scan.txt");
+        // The text must come from the index, not from re-reading the file.
+        fs::remove_file(&path).unwrap();
+
+        let response = call(&fixture, "read_document", json!({"path": path.to_string_lossy()}));
+        assert_ne!(response["result"]["isError"], true, "{response}");
+        let page = payload(&response);
+        assert_eq!(page["text"], text);
+        assert_eq!(page["source"], "index");
+        assert_eq!(page["next_offset"], Value::Null);
+
+        let snippet = payload(&call(
+            &fixture,
+            "read_snippet",
+            json!({"path": path.to_string_lossy(), "query": "прогул"}),
+        ));
+        assert!(snippet["text"].as_str().unwrap().contains("прогул"));
+        assert_eq!(snippet["source"], "index");
+    }
+
+    #[test]
+    fn read_document_refuses_paths_outside_indexed_folders() {
+        let fixture = fixture("read-document-scope");
+        let outside = std::env::temp_dir().join("index-osr-outside.txt");
+        // Scope violations are invalid params (JSON-RPC error), like read_snippet.
+        let response = call(&fixture, "read_document", json!({"path": outside.to_string_lossy()}));
+        assert_eq!(response["error"]["code"], INVALID_PARAMS, "{response}");
+        let secret = fixture.dir.join("passwords.kdbx");
+        let response = call(&fixture, "read_document", json!({"path": secret.to_string_lossy()}));
+        assert_eq!(response["error"]["code"], INVALID_PARAMS, "{response}");
     }
 
     #[test]

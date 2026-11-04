@@ -421,6 +421,24 @@ fn handle_client(stream: LocalSocketStream, token: &str, manager: &Arc<IndexerMa
                     }
                 }
             }
+            "stored_text" => {
+                // index_osr: stored (already extracted, OCR included) text of
+                // one indexed file, inside the agent roots only.
+                let path = params.get("path").and_then(|v| v.as_str()).unwrap_or("");
+                let roots = kensaku_lib::agent::effective_agent_roots(&manager.config.read());
+                if path.is_empty() {
+                    Err("stored_text requires a path".to_string())
+                } else if !kensaku_lib::agent::agent_path_allowed(&roots, path) {
+                    Err("path is outside the indexed folders".to_string())
+                } else {
+                    let text = manager
+                        .content_index
+                        .read()
+                        .as_ref()
+                        .and_then(|index| index.get_stored_text(Path::new(path)));
+                    Ok(json!({ "path": path, "text": text }))
+                }
+            }
             "index_state" => manager.state_json(),
             "shutdown" => {
                 cleanup_paths();
