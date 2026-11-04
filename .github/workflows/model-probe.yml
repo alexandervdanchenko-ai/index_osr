@@ -132,6 +132,20 @@ jobs:
               n.get("type") for n in (summary["normalizer"] or {}).get("normalizers", [])
           ]
           print("SUMMARY " + json.dumps(brief, ensure_ascii=False))
+          def strip_maps(node):
+              if isinstance(node, dict):
+                  return {k: ("<charsmap %d chars>" % len(v) if k == "precompiled_charsmap" else strip_maps(v)) for k, v in node.items()}
+              if isinstance(node, list):
+                  return [strip_maps(x) for x in node]
+              return node
+          print("NORMALIZER " + json.dumps(strip_maps(summary["normalizer"]), ensure_ascii=False))
+          # The precompiled charsmap: how it differs from plain NFKC on sample text.
+          import unicodedata
+          probe_chars = "Ёё«»–—…№ “”„ ½ ﬁ ２ Ａ　x\u00a0y\u200bz Ⅻ ㎏ é ё"
+          print("NFKCDIFF " + json.dumps({
+              "precompiled": tokenizer.normalizer.normalize_str(probe_chars),
+              "nfkc": unicodedata.normalize("NFKC", probe_chars),
+          }, ensure_ascii=False))
           for g in gold:
               print("GOLD " + json.dumps(g, ensure_ascii=False))
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
