@@ -127,7 +127,13 @@ jobs:
           import shutil
           shutil.copy(paths["tokenizer.json"], "out/tokenizer.json")
           print(json.dumps({k: out[k] for k in ["revision", "files", "config", "tensors", "similarity"]}, ensure_ascii=False, indent=1))
-          print(json.dumps(summary, ensure_ascii=False)[:4000])
+          brief = {k: v for k, v in summary.items() if k != "normalizer"}
+          brief["normalizer_types"] = json.dumps(summary["normalizer"])[:0] or [
+              n.get("type") for n in (summary["normalizer"] or {}).get("normalizers", [])
+          ]
+          print("SUMMARY " + json.dumps(brief, ensure_ascii=False))
+          for g in gold:
+              print("GOLD " + json.dumps(g, ensure_ascii=False))
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: probe
