@@ -7,6 +7,7 @@
 pub mod connect;
 pub mod http;
 pub mod mcp;
+pub mod outline;
 pub mod symbols;
 
 use crate::config::KensakuConfig;

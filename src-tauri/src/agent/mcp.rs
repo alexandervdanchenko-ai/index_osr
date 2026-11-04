@@ -298,6 +298,43 @@ fn tool_definitions(reindex_enabled: bool, visual_available: bool) -> Vec<Value>
             }
         }),
         json!({
+            "name": "document_outline",
+            "description": "Table of contents of an indexed document, built locally from its structure: parts of court acts (РЕШЕНИЕ, УСТАНОВИЛ, РЕШИЛ...), chapters and articles of codes, numbered sections of contracts, headings, pages. Each section has an id, level, page range, size and a short preview. Use it on long documents to choose what to read, then call read_section.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path of the document (as returned by search)."
+                    },
+                    "max_level": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 3,
+                        "default": 3,
+                        "description": "Deepest heading level to list (1 = documents/parts, 2 = chapters/operative parts, 3 = articles/items)."
+                    }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "read_section",
+            "description": "Read one section of an indexed document (with its subsections) by the id from document_outline. Paged like read_document: continue with next_offset.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Absolute path of the document."},
+                    "section": {"type": "string", "description": "Section id from document_outline."},
+                    "offset": {"type": "integer", "minimum": 0, "default": 0, "description": "Character offset inside the section."},
+                    "max_chars": {"type": "integer", "minimum": 1000, "maximum": 100000, "default": 30000, "description": "Maximum characters in this page."}
+                },
+                "required": ["path", "section"],
+                "additionalProperties": false
+            }
+        }),
+        json!({
             "name": "index_state",
             "description": "Report index freshness/progress and size: file/dir counts, content documents, semantic units, model ids, phase and watched roots.",
             "inputSchema": {
@@ -451,6 +488,8 @@ fn call_tool(
         "search" => tool_search(session, &arguments),
         "read_snippet" => tool_read_snippet(session, &arguments),
         "read_document" => tool_read_document(session, &arguments),
+        "document_outline" => tool_document_outline(session, &arguments),
+        "read_section" => tool_read_section(session, &arguments),
         "index_state" => tool_index_state(session),
         "similar_images" => tool_similar_images(session, &arguments),
         "regex_search" => tool_regex_search(session, &arguments),
@@ -927,6 +966,105 @@ fn tool_read_document(session: &AgentSession<'_>, args: &Value) -> Result<Value,
     Ok(document_page(path, &text, offset, max_chars))
 }
 
+/// Shared by read_document and the outline tools: scope check and stored text.
+fn indexed_text(session: &AgentSession<'_>, args: &Value) -> Result<(String, String), ToolFailure> {
+    let path = args
+        .get("path")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .ok_or_else(|| ToolFailure::Invalid("Invalid params: 'path' is required".to_string()))?;
+    if !agent_path_allowed(&session.scoped_roots(), path) {
+        return Err(ToolFailure::Invalid(
+            "Invalid params: path is outside the indexed folders".to_string(),
+        ));
+    }
+    let text = session
+        .stored_text(path)
+        .map_err(ToolFailure::Execution)?
+        .ok_or_else(|| {
+            ToolFailure::Execution(format!(
+                "{path} is not in the index yet (not indexed, excluded, or still being processed)"
+            ))
+        })?;
+    Ok((path.to_string(), text))
+}
+
+/// Most sections listed at once; deeper levels are dropped first beyond it.
+const MAX_OUTLINE_SECTIONS: usize = 300;
+
+/// index_osr: the document's table of contents (see `agent::outline`).
+fn tool_document_outline(session: &AgentSession<'_>, args: &Value) -> Result<Value, ToolFailure> {
+    let (path, text) = indexed_text(session, args)?;
+    let mut max_level = match args.get("max_level") {
+        None | Some(Value::Null) => 3,
+        Some(value) => value.as_u64().filter(|n| (1..=3).contains(n)).ok_or_else(|| {
+            ToolFailure::Invalid("Invalid params: 'max_level' must be 1, 2 or 3".to_string())
+        })? as u8,
+    };
+    let all = crate::agent::outline::outline(&text);
+    let mut collapsed = false;
+    while max_level > 1 && all.iter().filter(|s| s.level <= max_level).count() > MAX_OUTLINE_SECTIONS {
+        max_level -= 1;
+        collapsed = true;
+    }
+    let sections: Vec<Value> = all
+        .iter()
+        .filter(|s| s.level <= max_level)
+        .take(MAX_OUTLINE_SECTIONS)
+        .map(|s| {
+            let pages = match (s.page_start, s.page_end) {
+                (Some(a), Some(b)) if a == b => Value::from(a.to_string()),
+                (Some(a), Some(b)) => Value::from(format!("{a}-{b}")),
+                _ => Value::Null,
+            };
+            json!({
+                "id": s.id,
+                "level": s.level,
+                "title": s.title,
+                "pages": pages,
+                "chars": s.chars,
+                "preview": s.preview,
+            })
+        })
+        .collect();
+    Ok(json!({
+        "path": path,
+        "total_chars": text.chars().count(),
+        "sections": sections,
+        "max_level": max_level,
+        "collapsed_to_fit": collapsed,
+        "source": "index",
+    }))
+}
+
+/// index_osr: one section of the outline, paged.
+fn tool_read_section(session: &AgentSession<'_>, args: &Value) -> Result<Value, ToolFailure> {
+    let (path, text) = indexed_text(session, args)?;
+    let id = args
+        .get("section")
+        .and_then(|v| v.as_str().map(str::to_string).or_else(|| v.as_u64().map(|n| n.to_string())))
+        .ok_or_else(|| ToolFailure::Invalid("Invalid params: 'section' is required".to_string()))?;
+    let offset = args.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
+    let max_chars = args
+        .get("max_chars")
+        .and_then(Value::as_u64)
+        .unwrap_or(30_000)
+        .clamp(1_000, 100_000) as usize;
+    let (section, body) = crate::agent::outline::section_text(&text, &id).ok_or_else(|| {
+        ToolFailure::Invalid(format!("Invalid params: no section '{id}' in this document"))
+    })?;
+    let mut page = document_page(&path, &body, offset, max_chars);
+    page["section"] = json!({
+        "id": section.id,
+        "title": section.title,
+        "level": section.level,
+        "page_start": section.page_start,
+        "page_end": section.page_end,
+    });
+    Ok(page)
+}
+
 /// One page of `text` measured in characters, never splitting a code point.
 fn document_page(path: &str, text: &str, offset: usize, max_chars: usize) -> Value {
     let total_chars = text.chars().count();
@@ -1327,7 +1465,7 @@ mod tests {
         .expect("tools/list must reply");
 
         let tools = response["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 8);
+        assert_eq!(tools.len(), 10);
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert_eq!(
             names,
@@ -1336,6 +1474,8 @@ mod tests {
                 "search",
                 "read_snippet",
                 "read_document",
+                "document_outline",
+                "read_section",
                 "index_state",
                 "regex_search",
                 "find_symbol",
@@ -1412,6 +1552,34 @@ mod tests {
         ));
         assert!(snippet["text"].as_str().unwrap().contains("прогул"));
         assert_eq!(snippet["source"], "index");
+    }
+
+    #[test]
+    fn outline_and_section_of_an_indexed_court_decision() {
+        let text = "Тушинский районный суд г. Москвы\nР Е Ш Е Н И Е\nИменем Российской Федерации\n\
+У С Т А Н О В И Л :\nИстец уволен за прогул.\n--- Page 2 ---\nР Е Ш И Л :\nВосстановить истца на работе.\n";
+        let fixture = fixture_with_files("outline", &[("решение.txt", text)]);
+        let path = fixture.dir.join("решение.txt").to_string_lossy().into_owned();
+        let toc = payload(&call(&fixture, "document_outline", json!({"path": path})));
+        let titles: Vec<&str> = toc["sections"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|s| s["title"].as_str().unwrap())
+            .collect();
+        assert_eq!(titles, vec!["Начало документа", "Р Е Ш Е Н И Е", "У С Т А Н О В И Л", "Р Е Ш И Л"]);
+        assert_eq!(toc["sections"][3]["pages"], "2");
+        let top = payload(&call(&fixture, "document_outline", json!({"path": path, "max_level": 1})));
+        assert_eq!(top["sections"].as_array().unwrap().len(), 2);
+
+        let part = payload(&call(&fixture, "read_section", json!({"path": path, "section": "4"})));
+        assert!(part["text"].as_str().unwrap().contains("Восстановить истца"));
+        assert!(!part["text"].as_str().unwrap().contains("уволен"));
+        assert_eq!(part["section"]["title"], "Р Е Ш И Л");
+        let missing = call(&fixture, "read_section", json!({"path": path, "section": "42"}));
+        assert_eq!(missing["error"]["code"], INVALID_PARAMS);
+        let outside = call(&fixture, "document_outline", json!({"path": "/etc/passwd"}));
+        assert_eq!(outside["error"]["code"], INVALID_PARAMS);
     }
 
     #[test]

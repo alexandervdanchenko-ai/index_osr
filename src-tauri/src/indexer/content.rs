@@ -364,7 +364,8 @@ pub const MAX_REGEX_PATTERN_LEN: usize = 1024;
 /// v2: K15 schema (CJK-aware "kensaku" tokenizer on filename and content)
 /// v3: ext/size fields for filter pushdown (K12/B4)
 /// v4: index_osr - Russian stemmer and ё/е folding in the "kensaku" analyzer
-pub const CONTENT_SCHEMA_VERSION: u32 = 4;
+/// v5: index_osr - every page of scanned PDFs OCR'd (was 6), with page markers
+pub const CONTENT_SCHEMA_VERSION: u32 = 5;
 pub const SCHEMA_MARKER_FILE: &str = "content.schema";
 
 impl ContentIndex {
@@ -423,6 +424,8 @@ impl ContentIndex {
                     "K12 filter pushdown migration (schema v2 -> v3)"
                 } else if marker_version < 4 {
                     "Russian stemmer and ё/е folding (schema v3 -> v4)"
+                } else if marker_version < 5 {
+                    "Full OCR of scanned PDFs with page markers (schema v4 -> v5)"
                 } else {
                     "Content schema marker is stale"
                 };

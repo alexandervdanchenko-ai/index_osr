@@ -285,6 +285,24 @@ fn extraction_timeout_for(file_size: u64) -> Duration {
     Duration::from_secs(secs)
 }
 
+/// index_osr: PDFs may be scans whose every page needs OCR (Tesseract reads
+/// about one page a second). A scanned page is roughly 100-300 KB, so the
+/// budget grows by 2 s per 100 KB, capped at 15 minutes. The OCR loop itself
+/// stops at 80 % of this budget and keeps what it read, so a long scan is
+/// indexed (mostly or fully) instead of timing out on every crawl.
+pub(crate) fn pdf_extraction_timeout(file_size: u64) -> Duration {
+    let extra = file_size / (100 * 1024) * 2;
+    Duration::from_secs((EXTRACTION_TIMEOUT.as_secs() + extra).clamp(30, 900))
+}
+
+fn timeout_for(format: DocumentFormat, file_size: u64) -> Duration {
+    if format == DocumentFormat::Pdf {
+        pdf_extraction_timeout(file_size)
+    } else {
+        extraction_timeout_for(file_size)
+    }
+}
+
 /// How long a caller waits for a free extraction slot before giving up on the
 /// file for this crawl. This is backpressure, not a work timeout: without it a
 /// stalled document could permanently consume every slot.
@@ -537,10 +555,10 @@ fn extract_document_tracked(
                 let _ = tx.send(result);
             });
 
-            match rx.recv_timeout(extraction_timeout_for(file_size)) {
+            match rx.recv_timeout(timeout_for(format, file_size)) {
                 Ok(result) => result,
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                    warn_extraction_timeout(path, extraction_timeout_for(file_size));
+                    warn_extraction_timeout(path, timeout_for(format, file_size));
                     retry.store(true, Ordering::SeqCst);
                     None
                 }

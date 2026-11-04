@@ -62,7 +62,7 @@ pub fn extract_pdf(path: &Path, max_bytes: usize) -> Option<PdfExtractResult> {
         // check only fires between pages); the assembled text is truncated
         // here so the content budget holds for every PDF.
         let mut text = if is_scanned && crate::indexer::extract::ocr_enabled() {
-            let (ocr_text, unavailable) = extract_scanned_pdf_ocr(&doc, max_bytes);
+            let (ocr_text, unavailable) = extract_scanned_pdf_ocr(&doc, max_bytes, ocr_deadline(&path_buf));
             ocr_unavailable = unavailable;
             match ocr_text {
                 Some(ocr_text) if full_text.trim().is_empty() => ocr_text,
@@ -106,17 +106,22 @@ pub fn extract_pdf(path: &Path, max_bytes: usize) -> Option<PdfExtractResult> {
     }
 }
 
-/// Most pages of a scanned PDF that get OCR'd. PP-OCR reads a page in about
-/// 0.15 s, so 20 pages fit comfortably in the extraction time budget; Indra
-/// takes up to about 0.75 s on a dense page, so 10; Tesseract takes about 1 s
-/// a page, so it stays at 6 to avoid timing out (a timed-out file is
-/// retried, so too many pages would retry forever).
+/// Most pages of a scanned PDF that get OCR'd.
+///
+/// index_osr: upstream read only the first 6 pages with Tesseract (20 with
+/// PP-OCR), so most of a multi-page court scan was never searchable. Now every
+/// page is read until the time budget runs out (see [`ocr_deadline`]); this
+/// cap only bounds pathological files.
 fn max_ocr_pages() -> usize {
-    match crate::ocr::usable_engine() {
-        crate::ocr::ACCURATE => 20,
-        crate::ocr::INDRA => 10,
-        _ => 6,
-    }
+    1_000
+}
+
+/// When the OCR loop stops: 80 % of the PDF extraction budget, so partial
+/// text is returned before the extraction itself times out.
+fn ocr_deadline(path: &Path) -> std::time::Instant {
+    let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    let budget = crate::indexer::extract::pdf_extraction_timeout(size);
+    std::time::Instant::now() + budget.mul_f32(0.8)
 }
 
 /// OCRs the page images of a scanned PDF, in page order.
@@ -124,7 +129,11 @@ fn max_ocr_pages() -> usize {
 /// Returns the text (if any) and whether OCR was unavailable, so the caller
 /// can retry the file once an engine can run. Undecodable images (JPEG 2000,
 /// fax, JBIG2) are logged once per file rather than skipped silently.
-fn extract_scanned_pdf_ocr(doc: &Document, max_bytes: usize) -> (Option<String>, bool) {
+fn extract_scanned_pdf_ocr(
+    doc: &Document,
+    max_bytes: usize,
+    deadline: std::time::Instant,
+) -> (Option<String>, bool) {
     use crate::ocr::OcrOutcome;
 
     let mut skipped: Vec<String> = Vec::new();
@@ -142,16 +151,26 @@ fn extract_scanned_pdf_ocr(doc: &Document, max_bytes: usize) -> (Option<String>,
 
     let mut collected = String::new();
     let mut unavailable = false;
-    for image in &images {
+    for (index, image) in images.iter().enumerate() {
         if collected.len() >= max_bytes {
+            break;
+        }
+        if std::time::Instant::now() >= deadline {
+            collected.push_str(&format!(
+                "\n\n[OCR stopped after {} of {} pages: time budget]",
+                index,
+                images.len()
+            ));
             break;
         }
         match crate::indexer::extract::image::ocr_decoded_image(image) {
             OcrOutcome::Text(text) => {
                 let trimmed = text.trim();
                 if !trimmed.is_empty() {
+                    // index_osr: page markers like text PDFs, so documents can
+                    // be cited and outlined by page.
                     if !collected.is_empty() {
-                        collected.push_str("\n\n");
+                        collected.push_str(&format!("\n\n--- Page {} ---\n", index + 1));
                     }
                     collected.push_str(trimmed);
                 }
