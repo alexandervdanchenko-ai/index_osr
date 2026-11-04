@@ -19,6 +19,7 @@ kensaku-cli — search the local Kensaku index
 USAGE:
     kensaku-cli search \"<query>\" [--json] [--limit N] [--exhaustive] [--path P] [--ext E] [--since 7d|30d|1h]
     kensaku-cli state [--json]
+    kensaku-cli setup --root DIR [--root DIR ...] [--json]
     kensaku-cli mcp
     kensaku-cli serve [--port N]
     kensaku-cli connect <claude-desktop|claude-code|cursor> [--write]
@@ -47,6 +48,7 @@ where
     match command {
         "search" => run_search(&args[1..]),
         "state" => run_state(&args[1..]),
+        "setup" => run_setup(&args[1..]),
         "mcp" => match mcp::serve() {
             Ok(()) => EXIT_OK,
             Err(e) => {
@@ -67,6 +69,64 @@ where
             EXIT_USAGE
         }
     }
+}
+
+/// index_osr: `kensaku-cli setup --root DIR ...` writes the indexed folders
+/// and marks setup complete, so a host program (CourtMonitor) configures the
+/// index without the first-run wizard. Every other setting is kept. Prints
+/// whether the folders changed so the host knows to restart the indexer.
+fn run_setup(args: &[String]) -> i32 {
+    use crate::config::KensakuConfig;
+    let mut roots: Vec<std::path::PathBuf> = Vec::new();
+    let mut json = false;
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--root" => match iter.next() {
+                Some(dir) if !dir.trim().is_empty() => roots.push(std::path::PathBuf::from(dir)),
+                _ => {
+                    eprintln!("kensaku-cli: --root needs a folder");
+                    return EXIT_USAGE;
+                }
+            },
+            "--json" => json = true,
+            other => {
+                eprintln!("kensaku-cli: unknown setup option '{}'", other);
+                return EXIT_USAGE;
+            }
+        }
+    }
+    if roots.is_empty() {
+        eprintln!("kensaku-cli: setup needs at least one --root");
+        return EXIT_USAGE;
+    }
+    roots.dedup();
+
+    let mut config = KensakuConfig::load();
+    let changed = config.watched_dirs != roots || !config.is_setup_complete;
+    if changed {
+        config.watched_dirs = roots;
+        config.is_setup_complete = true;
+        if let Err(e) = config.save() {
+            eprintln!("kensaku-cli: could not save config: {}", e);
+            return EXIT_FAILURE;
+        }
+    }
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "changed": changed,
+                "config_dir": KensakuConfig::config_dir(),
+                "watched_dirs": config.watched_dirs,
+            })
+        );
+    } else if changed {
+        println!("Folders saved: {}", config.watched_dirs.len());
+    } else {
+        println!("Folders unchanged");
+    }
+    EXIT_OK
 }
 
 #[derive(Debug)]
@@ -350,6 +410,18 @@ fn open_index() -> Result<HeadlessIndex, i32> {
                 Err(EXIT_FAILURE)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod setup_tests {
+    use super::*;
+
+    #[test]
+    fn setup_requires_a_root() {
+        assert_eq!(run_setup(&[]), EXIT_USAGE);
+        assert_eq!(run_setup(&["--root".to_string()]), EXIT_USAGE);
+        assert_eq!(run_setup(&["--bogus".to_string()]), EXIT_USAGE);
     }
 }
 
